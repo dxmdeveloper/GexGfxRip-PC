@@ -107,7 +107,7 @@ void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t foundCal
     
     while(true){
         // find next graphic
-        gfx = findU32(gfx + 1, endOffset - 24, 0b101, 0xffff9985);
+        gfx = findU32(gfx + 1, endOffset - 24, 0x9f05, 0xffff9985);
         if(gfx == NULL) break;
 
         // TODO: checking for more palettes assigned
@@ -160,7 +160,7 @@ void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
 
         u32 *palp = infilePtrToOffset(*p2p2Palette, chunkStart);
         // pointer verification
-        if (!(palp < chunkStart || palp > chunkEnd - 36) && (*palp | 1) == 0xffffff01) break;
+        if (!(palp < chunkStart || palp > chunkEnd - 36) && (*palp | 0xff01) == 0xffffff01) break;
     }
     
     return infilePtrToOffset(*p2p2Palette, chunkStart);

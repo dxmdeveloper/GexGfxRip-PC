@@ -27,7 +27,7 @@ struct gfx_palette gfx_createPalette(void *gexPalette){
         return newPalette;
     }
 
-    switch(*((u32*)gexPalette + 0)){
+    switch(*((u32*)gexPalette + 0) | 0xff00){
         case 0xffffff00:
             newPalette.colorsCount = 16;
             break;
@@ -60,15 +60,18 @@ u8** gfx_drawImgFromRaw(void *pointer2Gfx){
     pointer2Gfx += 20;
 
     if(pointer2Gfx == NULL) return NULL;
-    switch (header->typeSignature)
+    if(header->inf_imgWidth < 2 || header->inf_imgHeight < 2 
+    || header->inf_imgWidth > IMG_MAX_WIDTH || header->inf_imgHeight > IMG_MAX_HEIGHT) return NULL;
+
+    switch (header->typeSignature | 0x9F00)
     {
-        case 0xFFFF9985:
+        case 0xFFFF9F85:
             return gfx_drawSprite(pointer2Gfx, false, header->inf_imgWidth, header->inf_imgHeight);
-        case 0xFFFF9984:
+        case 0xFFFF9F84:
             return gfx_drawSprite(pointer2Gfx, true, header->inf_imgWidth, header->inf_imgHeight);
-        case 0xFFFF9981:
+        case 0xFFFF9F81:
             return gfx_drawGexBitmap(pointer2Gfx, false, header->inf_imgWidth, header->inf_imgHeight);
-        case 0xFFFF9980:
+        case 0xFFFF9F80:
             return gfx_drawGexBitmap(pointer2Gfx, true, header->inf_imgWidth, header->inf_imgHeight);
     }
     return NULL;
@@ -134,10 +137,13 @@ u8** gfx_drawSprite(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight)
     u32 height = 0;
     struct gex_gfxChunk *chunk;
     
+
+    
     if(checkSizeOfCanvas(&width, &height, pointer2Gfx)){
         return NULL;
     }
 
+    
     if(width < minWidth) width = minWidth;
     if(height < minHeight) height = minHeight;
     

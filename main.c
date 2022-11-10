@@ -22,15 +22,27 @@ struct gfx_palette const_grayscalePal16;
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
     //TODO: check arg string length
-    if(argc < 2) {
-        printUsageHelp();
-        return -1;
-    }
-
+    
     const_grayscalePal256 = createDefaultPalette(true, true);
     const_grayscalePal16 = createDefaultPalette(false, true);
 
-    scan4Gfx(argv[argc-1], onfound);
+    // if no additional program arguments or
+    if(argc == 1 || strcmp(argv[argc-1], "*") == 0){
+        char ifilename[11];
+        for(u8 fileI = 0; fileI < 255; fileI++){
+            sprintf(ifilename, "GEX%03u.LEV", fileI);
+
+            // Test file availibity
+            FILE* testFile = fopen(ifilename, "rb");
+            if(testFile == NULL) continue;
+            fclose(testFile);
+
+            // Scan found file
+            scan4Gfx(ifilename, onfound);
+        }
+    } else {
+        scan4Gfx(argv[argc-1], onfound);
+    }
     return 0;     
 }
 //-------------------------------------------------------------------
@@ -89,9 +101,9 @@ struct gfx_palette createDefaultPalette(bool _256colors, bool transparency){
     }
     pal.colorsCount = (_256colors ? 256 : 16);
     for(u16 i = 0; i < 256; i+= (_256colors ? 1 : 16)){
-        pal.palette[i].blue = i;
-        pal.palette[i].green = i;
-        pal.palette[i].red = i;
+        pal.palette[i / (_256colors ? 1 : 16)].blue = i;
+        pal.palette[i / (_256colors ? 1 : 16)].green = i;
+        pal.palette[i / (_256colors ? 1 : 16)].red = i;
     }
     return pal;
 }

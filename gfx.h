@@ -4,7 +4,7 @@
 #include "basicdefs.h"
 #include <stdbool.h>
 
-#define IMG_CHUNKS_LIMIT 16
+#define IMG_CHUNKS_LIMIT 64
 #define IMG_MAX_WIDTH 2048
 #define IMG_MAX_HEIGHT 2048
 
