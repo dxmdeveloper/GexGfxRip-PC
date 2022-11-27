@@ -1,5 +1,7 @@
 #pragma once
 
+
+
 #include <png.h>
 #include "basicdefs.h"
 #include <stdbool.h>
@@ -8,6 +10,11 @@
 #define IMG_MAX_WIDTH 2048
 #define IMG_MAX_HEIGHT 2048
 
+/*
+#pragma pack is required for 64 bit build in order to avoid structure paddings
+*/
+#pragma pack(push,1) 
+
 /** @struct gex_gfxHeader
  *  @brief Header containing information about Gex graphic file;
  * does not contain info about chunks nor operationMapLength (for sprite);
@@ -15,11 +22,10 @@
  * 
  * @property gex_GfxHeader::typeSignature
  *  Possible values in BIG ENDIAN :
- *  FF FF 99 80 - bitmap 4 bpp
- *  FF FF 99 81 - bitmap 8 bpp
- *  FF FF 99 84 - sprite 4 bpp
- *  FF FF 99 85 - sprite 8 bpp  */
-#pragma pack(push,1)
+ *  FF FF XX 80 - bitmap 4 bpp
+ *  FF FF XX 81 - bitmap 8 bpp
+ *  FF FF XX 84 - sprite 4 bpp
+ *  FF FF XX 85 - sprite 8 bpp  */
 struct gex_gfxHeader {
     u16 _structPadding; ///<  NULL, no impact on graphic rendering
 
@@ -29,7 +35,7 @@ struct gex_gfxHeader {
     u16 bitmap_shiftY;
     u32 typeSignature;
 };
-#pragma pack(pop)
+#pragma pack(pop) 
 
 /** @struct gex_gfxChunk
  * @brief bitmap in Gex is usually segmented;
@@ -56,7 +62,7 @@ struct gfx_palette {
 
 
 /** @brief creates palette from gex palette format.
- * gex palette format starts with (LE) 00 FF FF FF for 16 colors or 01 FF FF FF for 256 colors
+ * gex palette format starts with (LE) 00 XX FF FF for 16 colors or 01 XX FF FF for 256 colors
  * @return struct gfx_palette. Object will have 0 colors if the gexPalette has invalid format */
 struct gfx_palette gfx_createPalette(void *gexPalette);
 
@@ -70,7 +76,7 @@ png_color bgr555toRgb888(u16 bgr555);
 u8** gfx_drawImgFromRaw(void *pointer2Gfx);
 
 
-/** @brief creates bitmap form PC/PSX 4/8 bpp bitmap (LE){(80 99 FF FF), (81 99 FF FF)};
+/** @brief creates bitmap form PC/PSX 4/8 bpp bitmap (LE){(80 XX FF FF), (81 XX FF FF)};
  * palette is not included
  * @param pointer2Gfx pointer to data without gex_gfxChunk
  * @return two dimensional array of indexed pixels with row pointers;
@@ -78,7 +84,7 @@ u8** gfx_drawImgFromRaw(void *pointer2Gfx);
 u8** gfx_drawGexBitmap(void *pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight);
 
 
-/** @brief creates bitmap form PC/PSX 8bpp sprite (LE)(85 99 FF FF);
+/** @brief creates bitmap form PC/PSX 4/8 bpp sprite (LE){(84 XX FF FF), (85 XX FF FF)};
  * palette is not included
  * @param pointer2Gfx pointer to data without gex_gfxChunk
  * @return two dimensional array of indexed pixels with row pointers;

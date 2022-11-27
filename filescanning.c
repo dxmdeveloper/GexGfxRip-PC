@@ -4,7 +4,12 @@
 #include "basicdefs.h"
 #include "gfx.h"
 
-
+// mkdir / stat
+#ifdef _WIN32
+    #include "dirent.h"
+#else //POSIX
+    #include <sys/stat.h>
+#endif
 
 // PRIVATE DECLARATIONS:
 uintptr_t findU32(void *startPtr, void *endPtr, u32 ORMask, u32 matchVal);
@@ -47,14 +52,16 @@ void scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     fread(fileData, 1, fileSize, file);
     fclose(file);
 
-    // create dir for graphics
-    char *path = malloc(strlen(filename) + 33); // 26 chars for filename reserved
-    strcpy(&path[6], filename);
-    strcat(&path[6], "-rip"); // "{filename}-rip"
+    // Create directory for graphics.
+    char *path = malloc(strlen(filename) + 27); // 26 chars for filename reserved
+    strcpy(path, filename);
+    strcat(path, "-rip"); // "{filename}-rip"
 
-    strncpy(path, "mkdir ", 6);
-    system(path); // < dir creating function
-    path += 6;
+    #ifdef _WIN32
+        _mkdir(path);
+    #else // POSIX
+        mkdir(path, 0777);
+    #endif
 
 
     // --- Actual Scanning Process ---    
@@ -67,7 +74,7 @@ void scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
         // TYPE OF FILE: chunked archive
         // Too small archive error
         if(fileSize < 32 + ((u32*)fileData)[0] * 16){
-            free(path-6);
+            free(path);
             fprintf(stderr, "Err: Invalid archive file\n");
             fclose(file);
             return;
@@ -83,12 +90,7 @@ void scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
                 fprintf(stderr, "invalid archive chunk allocation [chunk skipped]\n");
                 continue;
             }
-            /*
-            if(chunkOffset+chunkSize >=fileSize){
-                fprintf(stderr, "invalid archive chunk size\n");
-                // resize  
-            }
-            */
+
            scanChunk(fileData+chunkOffset, fileData+chunkOffset+chunkSize, foundCallback, path, pathLen, fileData);
         }
     }
@@ -96,7 +98,7 @@ void scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     // END OF FUNCTION
     // clean
     free(fileData);
-    free(path-6);
+    free(path);
 }
 
 void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t foundCallback, char path[], u32 pathLen, uintptr_t inf_fileDataAlloc){

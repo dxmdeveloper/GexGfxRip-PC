@@ -52,13 +52,17 @@ int main(int argc, char *argv[]) {
 
 
 // callback function for scan4Gfx
-// TODO: filename arg
-void onfound(void *gfx, const struct gfx_palette *palette, const char ofilname[]){
+// TODO: output filename based on program argument
+void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
     static u32 counter = 0;
     struct gex_gfxHeader *gfxHeader = gfx;
     struct gfx_palette *loc_palp = palette; //< local pointer var for color palette
 
     void **image = NULL;
+
+    if(palette->tRNS_count > 256){
+        int debug = 0;
+    }
 
     /*
     // ! TESTING
@@ -79,11 +83,14 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilname[]
     
     // Image creation
     image = gfx_drawImgFromRaw(gfx);
-    if(image == NULL) return;
+    if(image == NULL) {
+        dbg_errlog("DEBUG: failed to create "ofilename);
+        return;
+    }
 
     
     // PNG creation
-    WritePng(ofilname, image, 
+    WritePng(ofilename, image, 
      gfxHeader->inf_imgWidth, gfxHeader->inf_imgHeight,
      loc_palp->palette, loc_palp->colorsCount, loc_palp->tRNS_array, loc_palp->tRNS_count);
 

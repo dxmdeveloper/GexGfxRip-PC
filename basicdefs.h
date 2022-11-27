@@ -20,3 +20,10 @@ typedef double f64;
 #else
     #define PATH_SEP "/"
 #endif
+
+// detailed error log
+#ifdef DEBUG
+    #define dbg_errlog(str) (fprintf(stderr"\n", str))
+#else
+    #define dbg_errlog(str)
+#endif

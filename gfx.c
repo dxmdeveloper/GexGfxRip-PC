@@ -20,6 +20,8 @@ png_color bgr555toRgb888(u16 bgr555);
 struct gfx_palette gfx_createPalette(void *gexPalette){
     struct gfx_palette newPalette;
     u16 *colors = (u16*)(gexPalette+4);
+    newPalette.tRNS_count = 0;
+    
 
     //exception: null pointer
     if(gexPalette == NULL) {
@@ -94,7 +96,7 @@ u8** gfx_drawGexBitmap(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeig
     // malloc image with valid size
     image = calloc2D(height, width, sizeof(u8));
     if(image==NULL){
-        printf("Out Of Memory!\n");
+        fprintf(stderr, "Out Of Memory!\n");
         return NULL;
     }
     
@@ -104,9 +106,9 @@ u8** gfx_drawGexBitmap(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeig
         u8 *dataPtr = (u8*)pointer2Gfx + chunk->startPointer - 20;
 
         
-        if(chunk->startPointer > (width*height) / (is4bpp ? 2 : 1)  /*+20 should be OK*/+ 20){
+        if(chunk->startPointer > (width*height) / (is4bpp ? 2 : 1)){
+            //Invalid graphic / misrecognized data
             free(image);
-            printf("Invalid graphic\n");
             return NULL;
         } 
 
@@ -150,7 +152,7 @@ u8** gfx_drawSprite(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight)
     // malloc image with valid size
     image = calloc2D(height, width, sizeof(u8));
     if(image==NULL){
-        printf("Out Of Memory!\n");
+        fprintf(stderr, "Out Of Memory!\n");
         return NULL;
     }
     
@@ -260,14 +262,14 @@ void **calloc2D(u32 y, u32 x, u8 sizeOfElement){
     return arr;
 }
 
-//returns true if error occured
+//returns true on error
 bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, struct gex_gfxChunk *firstChunk){
     struct gex_gfxChunk *chunk = firstChunk;
     u8 chunk_i = 0;
     
     while(chunk->startPointer > 0){
         if(chunk_i > IMG_CHUNKS_LIMIT){
-            printf("Error: Chunks limit reached\n"); 
+            fprintf(stderr, "Error: Chunks limit reached (gfx.c::checkSizeOfCanvas)\n"); 
             return true;
         }
         // Compare min required size with current canvas borders
@@ -279,7 +281,7 @@ bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, struct gex_gfxChunk *fir
         }
         // chunk validatation
         if(chunk->startPointer < 20){
-            printf("Invalid graphic format\n");
+            // invalid graphic format / misrecognized data
             return true;
         }        
         chunk = chunk+1;
@@ -287,7 +289,7 @@ bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, struct gex_gfxChunk *fir
     }
     // canvas size validatation
     if(*ref_width < 1 || *ref_height < 1 || *ref_width >  IMG_MAX_WIDTH || *ref_height > IMG_MAX_HEIGHT){
-        printf("Invalid size of graphic\n");
+        // invalid graphic format / misrecognized data
         return true;
     }
     return false;
