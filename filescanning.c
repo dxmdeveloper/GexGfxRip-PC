@@ -6,7 +6,7 @@
 
 // mkdir / stat
 #ifdef _WIN32
-    #include "dirent.h"
+    #include "direct.h"
 #else //POSIX
     #include <sys/stat.h>
 #endif
