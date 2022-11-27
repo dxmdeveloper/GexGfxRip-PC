@@ -9,7 +9,7 @@
 
 // PRIVATE DECLARATIONS:
 struct gfx_palette createDefaultPalette(bool _256colors, bool transparency);
-void onfound(void *gfx, const struct gfx_palette *palette, const char ofilname[]);
+void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]);
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
@@ -21,7 +21,6 @@ struct gfx_palette const_grayscalePal16;
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
-    //TODO: check arg string length
     
     const_grayscalePal256 = createDefaultPalette(true, true);
     const_grayscalePal16 = createDefaultPalette(false, true);
@@ -54,15 +53,11 @@ int main(int argc, char *argv[]) {
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
 void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
-    static u32 counter = 0;
     struct gex_gfxHeader *gfxHeader = gfx;
-    struct gfx_palette *loc_palp = palette; //< local pointer var for color palette
+    struct gfx_palette *loc_palp = (uintptr_t) palette; //< local pointer var for color palette
 
     void **image = NULL;
 
-    if(palette->tRNS_count > 256){
-        int debug = 0;
-    }
 
     /*
     // ! TESTING
@@ -84,7 +79,7 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
     // Image creation
     image = gfx_drawImgFromRaw(gfx);
     if(image == NULL) {
-        dbg_errlog("DEBUG: failed to create "ofilename);
+        dbg_errlog("DEBUG: failed to create %s", ofilename);
         return;
     }
 
@@ -96,8 +91,6 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
 
     //cleaning
     free(image);
-    
-    counter++;
 }
 
 struct gfx_palette createDefaultPalette(bool _256colors, bool transparency){

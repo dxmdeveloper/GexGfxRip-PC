@@ -8,7 +8,7 @@ void error_exit(struct png_struct_def * def, const char * msg){
     exit(0x504E47);
 }
 
-void WritePng(char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans){
+void WritePng(const char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans){
     FILE *fp = NULL;
     png_structp png_ptr = NULL;
     png_infop info_ptr = NULL;

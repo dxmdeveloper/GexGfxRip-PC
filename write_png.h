@@ -14,4 +14,4 @@
  * Can be NULL if num_trans equals 0
  * @param num_trans number of transparency values in tRNS MAX VAL = 256
  */
-void WritePng(char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans);
+void WritePng(const char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans);

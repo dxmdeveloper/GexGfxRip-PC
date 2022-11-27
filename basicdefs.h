@@ -23,7 +23,7 @@ typedef double f64;
 
 // detailed error log
 #ifdef DEBUG
-    #define dbg_errlog(str) (fprintf(stderr"\n", str))
+    #define dbg_errlog(str, ...) (fprintf(stderr, str, __VA_ARGS__))
 #else
-    #define dbg_errlog(str)
+    #define dbg_errlog(str, ...)
 #endif
