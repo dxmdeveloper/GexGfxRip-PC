@@ -158,11 +158,11 @@ void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
     // loop breaks when pal is not found or when found a valid palette
     while(true){
         p2p2Palette = findU32(p2p2Palette + 1, chunkEnd - 4, 0, offsetToInfilePtr(gfxOffset, chunkStart)) + 4;
-        if ( p2p2Palette == 4 ) return NULL;
+        if ((uptr) p2p2Palette == 4 ) return NULL;
 
         u32 *palp = infilePtrToOffset(*p2p2Palette, chunkStart);
         // pointer verification
-        if (!(palp < chunkStart || palp > chunkEnd - 36) && (*palp | 0xff01) == 0xffffff01) break;
+        if (!((uptr)palp < (uptr)chunkStart || (uptr)palp > (uptr)chunkEnd - 36) && (*palp | 0xff01) == 0xffffff01) break;
     }
     
     return infilePtrToOffset(*p2p2Palette, chunkStart);

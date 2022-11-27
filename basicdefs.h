@@ -14,6 +14,7 @@ typedef uint8_t u8;
 typedef int8_t i8;
 typedef float f32;
 typedef double f64;
+typedef uintptr_t uptr;
 
 #ifdef _WIN32
     #define PATH_SEP "\\"
