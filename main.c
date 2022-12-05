@@ -54,10 +54,9 @@ int main(int argc, char *argv[]) {
 // TODO: output filename based on program argument
 void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
     struct gex_gfxHeader *gfxHeader = gfx;
-    struct gfx_palette *loc_palp = (uintptr_t) palette; //< local pointer var for color palette
+    const struct gfx_palette *loc_palp = palette; //< local pointer var for color palette
 
     void **image = NULL;
-
 
     /*
     // ! TESTING
@@ -82,7 +81,6 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
         dbg_errlog("DEBUG: failed to create %s", ofilename);
         return;
     }
-
     
     // PNG creation
     WritePng(ofilename, image, 

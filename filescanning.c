@@ -12,7 +12,6 @@
 #endif
 
 // PRIVATE DECLARATIONS:
-uintptr_t findU32(void *startPtr, void *endPtr, u32 ORMask, u32 matchVal);
 uintptr_t infilePtrToOffset(u32 infile_ptr, uintptr_t startOffset);
 u32 offsetToInfilePtr(uintptr_t fileOffset, uintptr_t startOffset);
 void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd);
@@ -107,37 +106,36 @@ void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t foundCal
     void *palp = NULL;
     void *gfx = startOffset + 15;
     
-    while(true){
-        // find next graphic
-        gfx = findU32(gfx + 1, endOffset - 24, 0x9f05, 0xffff9985);
-        if(gfx == NULL) break;
+    // find next graphic
+    while(gfx = findU32(gfx + 1, endOffset - 24, 0x9f05, 0xffff9985)){
+        
+        //if(gfx == NULL) break;
 
-        // TODO: checking for more palettes assigned
-        {
-            // match palette
-            palp = matchColorPalette(gfx - 16, startOffset, endOffset);
-            // palette not found
-            if(palp == NULL){
-                // placeholder
-            }
-            // create palette
-            else if(palp != lastPalPtr){
-                palette = gfx_createPalette(palp);
-                lastPalPtr = palp;
-            }
 
-            // filename
-            struct gex_gfxHeader *gfxHeader = gfx - 16;
-            char filename[18];
-            sprintf(filename, PATH_SEP"%c%c-%08X.png",
-                    ((gfxHeader->typeSignature & 4) == 4 ? 'S' : 'B'),
-                    ((gfxHeader->typeSignature & 1) == 1 ? '8' : '4'),
-                    (u32)((uintptr_t)gfx - 16 - inf_fileDataAlloc));
-            strncpy(path+pathLen, filename, 18);
-
-            // call callback function
-            foundCallback((void*) gfx - 16, (palette.colorsCount == 0 ? NULL : &palette), path);
+        // match palette
+        palp = matchColorPalette(gfx - 16, startOffset, endOffset);
+        // palette not found
+        if(palp == NULL){
+            // placeholder
         }
+        // create palette
+        else if(palp != lastPalPtr){
+            palette = gfx_createPalette(palp);
+            lastPalPtr = palp;
+        }
+
+        // filename
+        struct gex_gfxHeader *gfxHeader = gfx - 16;
+        char filename[18];
+        sprintf(filename, PATH_SEP"%c%c-%08X.png",
+                ((gfxHeader->typeSignature & 4) == 4 ? 'S' : 'B'),
+                ((gfxHeader->typeSignature & 1) == 1 ? '8' : '4'),
+                (u32)((uintptr_t)gfx - 16 - inf_fileDataAlloc));
+        strncpy(path+pathLen, filename, 18);
+
+        // call callback function
+        foundCallback((void*) gfx - 16, (palette.colorsCount == 0 ? NULL : &palette), path);
+    
     }
 }
 
@@ -168,15 +166,12 @@ void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
     return infilePtrToOffset(*p2p2Palette, chunkStart);
 }
 
-/// @brief function scanning memory for u32 value
-/// @param ORMask logical OR mask. 0 by default
-/// @param matchVal searched value.
-/// @return offset of found value. null if not found.
 uintptr_t findU32(void *startPtr, void *endPtr, u32 ORMask, u32 matchVal){
     endPtr -= (endPtr - startPtr) % 4;
+    matchVal |= ORMask;
     while(startPtr < endPtr){
-        if((ORMask | *((u32*)(startPtr))) == (ORMask | matchVal)){
-            return (uintptr_t)startPtr;
+        if((ORMask | *((u32*)(startPtr))) == matchVal){
+            return (uptr) startPtr;
         }
 
         startPtr++;
