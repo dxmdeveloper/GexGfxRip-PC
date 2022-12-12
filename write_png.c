@@ -8,7 +8,7 @@ void error_exit(struct png_struct_def * def, const char * msg){
     exit(0x504E47);
 }
 
-void WritePng(const char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans){
+void WritePng(const char filename[], png_byte** image, const u32 width, const u32 height, const struct gfx_palette *pal){
     FILE *fp = NULL;
     png_structp png_ptr = NULL;
     png_infop info_ptr = NULL;
@@ -38,10 +38,10 @@ void WritePng(const char filename[], png_byte** image, u32 width, u32 height, pn
     );
 
     //Setting palette 
-    png_set_PLTE(png_ptr,info_ptr, palette, num_pal);
+    png_set_PLTE(png_ptr,info_ptr, pal->palette, pal->colorsCount);
 
     //Setting Transparency
-    png_set_tRNS(png_ptr,info_ptr, tRNS, num_trans, NULL);
+    png_set_tRNS(png_ptr,info_ptr, pal->tRNS_array, pal->tRNS_count, NULL);
 
     //Write Info to file
     png_write_info(png_ptr, info_ptr);

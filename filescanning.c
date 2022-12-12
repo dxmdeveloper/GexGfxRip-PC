@@ -107,10 +107,7 @@ void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t foundCal
     void *gfx = startOffset + 15;
     
     // find next graphic
-    while(gfx = findU32(gfx + 1, endOffset - 24, 0x9f05, 0xffff9985)){
-        
-        //if(gfx == NULL) break;
-
+    while((gfx = findU32(gfx + 1, endOffset - 24, 0x9f05, 0xffff9985))){
 
         // match palette
         palp = matchColorPalette(gfx - 16, startOffset, endOffset);

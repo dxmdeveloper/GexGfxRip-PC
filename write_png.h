@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <png.h>
 #include "basicdefs.h"
+#include "gfx.h"
 
 /**
  * @param filename path of output file.
@@ -14,4 +15,4 @@
  * Can be NULL if num_trans equals 0
  * @param num_trans number of transparency values in tRNS MAX VAL = 256
  */
-void WritePng(const char filename[], png_byte** image, u32 width, u32 height, png_colorp palette, u16 num_pal, u8* tRNS, u16 num_trans);
+void WritePng(const char filename[], png_byte** image, const u32 width, const u32 height, const struct gfx_palette* pal);

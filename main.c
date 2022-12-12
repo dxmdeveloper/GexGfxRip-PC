@@ -54,7 +54,6 @@ int main(int argc, char *argv[]) {
 // TODO: output filename based on program argument
 void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
     struct gex_gfxHeader *gfxHeader = gfx;
-    const struct gfx_palette *loc_palp = palette; //< local pointer var for color palette
 
     void **image = NULL;
 
@@ -67,10 +66,10 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
     // exceptions handling 
     if(palette == NULL) {
         fprintf(stderr, "Err: invalid gex color palette\n");
-        if(gfxHeader->typeSignature & 1) loc_palp = &const_grayscalePal256;
-        else loc_palp = &const_grayscalePal16;
+        if(gfxHeader->typeSignature & 1) palette = &const_grayscalePal256;
+        else palette = &const_grayscalePal16;
     }
-    else if((gfxHeader->typeSignature & 1) && loc_palp->colorsCount < 256){
+    else if((gfxHeader->typeSignature & 1) && palette->colorsCount < 256){
         fprintf(stderr, "Err: color palette and graphic types mismatch\n");
         return;
     }
@@ -84,8 +83,7 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
     
     // PNG creation
     WritePng(ofilename, image, 
-     gfxHeader->inf_imgWidth, gfxHeader->inf_imgHeight,
-     loc_palp->palette, loc_palp->colorsCount, loc_palp->tRNS_array, loc_palp->tRNS_count);
+     gfxHeader->inf_imgWidth, gfxHeader->inf_imgHeight, palette);
 
     //cleaning
     free(image);
