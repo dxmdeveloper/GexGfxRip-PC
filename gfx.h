@@ -1,9 +1,7 @@
 #pragma once
 
-
-
 #include <png.h>
-#include "basicdefs.h"
+#include <stdint.h>
 #include <stdbool.h>
 
 #define IMG_CHUNKS_LIMIT 64
@@ -15,51 +13,58 @@
 */
 #pragma pack(push,1) 
 
-/** @struct gex_gfxHeader
+/** 
  *  @brief Header containing information about Gex graphic file;
- * does not contain info about chunks nor operationMapLength (for sprite);
+ * Does not contain info about chunks nor operationMapLength (for sprite format);
  * Size: 20 Bytes
  * 
  * @property gex_GfxHeader::typeSignature
  *  Possible values in BIG ENDIAN :
- *  FF FF XX 80 - bitmap 4 bpp
- *  FF FF XX 81 - bitmap 8 bpp
- *  FF FF XX 84 - sprite 4 bpp
- *  FF FF XX 85 - sprite 8 bpp  */
+ *  FF FF XX X0 - bitmap 4 bpp
+ *  FF FF XX X1 - bitmap 8 bpp
+ *  FF FF XX X4 - sprite 4 bpp
+ *  FF FF XX X5 - sprite 8 bpp  */
 struct gex_gfxHeader {
-    u16 _structPadding; ///<  NULL, no impact on graphic rendering
+    uint16_t _structPadding; 
 
-    u32 inf_imgWidth;  ///< width of canvas, may be different than actual size
-    u32 inf_imgHeight; ///< height of canvas, may be different than actual size
-    u32 bitmap_shiftX;
-    u16 bitmap_shiftY;
-    u32 typeSignature;
+    uint32_t inf_imgWidth;  ///< width of canvas, may be different than actual size
+    uint32_t inf_imgHeight; ///< height of canvas, may be different than actual size
+    uint32_t bitmap_shiftX;
+    uint16_t bitmap_shiftY;
+    uint32_t typeSignature;
 };
 #pragma pack(pop) 
 
-/** @struct gex_gfxChunk
+/** 
  * @brief bitmap in Gex is usually segmented;
  * gfxChunk struct contains information about one chunk of image;
  * Size: 8 Bytes */
 #pragma pack(push,1)
 struct gex_gfxChunk {
-    i16 startPointer; 
-    i8 width;
-    i8 height;
-    i16 rel_positionX;
-    i16 rel_positionY;
+    uint16_t startPointer; 
+    uint8_t width;
+    uint8_t height;
+    int16_t rel_positionX;
+    int16_t rel_positionY;
 };
 #pragma pack(pop)
 
-/** @struct gfx_palette
- * @brief internal palette struct with png tRNS info */
+/** 
+ *  @brief internal palette struct with png tRNS info 
+ *  @property tRNS_array array of alpha values (u8) for indexed colors.
+ * 0 - full transparency, 255 - full visibility
+ * http://www.libpng.org/pub/png/spec/1.2/PNG-Chunks.html#C.tRNS */
 struct gfx_palette {
     png_color palette[256];
-    u16 colorsCount; ///< 16 or 256
-    u8 tRNS_array[256]; ///< in practice 0 or 1 values will be used
-    u16 tRNS_count;
+    uint16_t colorsCount; ///< 16 or 256
+    uint8_t tRNS_array[256]; 
+    uint16_t tRNS_count;
 };
 
+
+//
+// ---------------- Functions ----------------
+//
 
 /** @brief creates palette from gex palette format.
  * gex palette format starts with (LE) 00 XX FF FF for 16 colors or 01 XX FF FF for 256 colors
@@ -68,28 +73,27 @@ struct gfx_palette gfx_createPalette(void *gexPalette);
 
 
 /** @brief converts rgb555 with swapped red and blue channels to rgb 8bpp */
-png_color bgr555toRgb888(u16 bgr555);
+png_color bgr555toRgb888(uint16_t bgr555);
 
 
 /** @brief detects graphics type and creates bitmap. calls gfx_draw...
+ *  @param chunksHeaders pointer to null terminated gex_gfxChunk structs.
+ *  @param bitmapIDat pointer to actual image data.
  *  @return image matrix or null pointer if failed */
-u8** gfx_drawImgFromRaw(void *pointer2Gfx);
+uint8_t** gfx_drawImgFromRaw(struct gex_gfxChunk *chunksHeaders, uint8_t *bitmapIDat);
 
 
 /** @brief creates bitmap form PC/PSX 4/8 bpp bitmap (LE){(80 XX FF FF), (81 XX FF FF)};
- * palette is not included
- * @param pointer2Gfx pointer to data without gex_gfxChunk
- * @return two dimensional array of indexed pixels with row pointers;
- * @return NULL Pointer if failed! */
-u8** gfx_drawGexBitmap(void *pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight);
+ *  @param chunksHeaders pointer to null terminated gex_gfxChunk structs.
+ *  @param bitmapIDat pointer to actual image data.
+ *  @return pointer to color indexed bitmap.
+ *  @return NULL Pointer if failed! */
+uint8_t** gfx_drawGexBitmap(struct gex_gfxChunk *chunksHeaders, uint8_t *bitmapIDat, bool is4bpp, uint32_t minWidth, uint32_t minHeight);
 
 
 /** @brief creates bitmap form PC/PSX 4/8 bpp sprite (LE){(84 XX FF FF), (85 XX FF FF)};
- * palette is not included
- * @param pointer2Gfx pointer to data without gex_gfxChunk
- * @return two dimensional array of indexed pixels with row pointers;
- * @return NULL Pointer if failed! */
-u8** gfx_drawSprite(void *pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight);
-
-
-void** malloc2D(u32 y, u32 x, u8 sizeOfElement);
+ *  @param chunksHeadersAndOpMap pointer to null terminated gex_gfxChunk structs and operations map.
+ *  @param bitmapIDat pointer to actual image data.
+ *  @return pointer to color indexed bitmap.
+ *  @return NULL Pointer if failed! */
+uint8_t** gfx_drawSprite(struct gex_gfxChunk *chunksHeadersAndOpMap, uint8_t *bitmapIDat, bool is4bpp, uint32_t minWidth, uint32_t minHeight);

@@ -11,13 +11,13 @@
     #include <sys/stat.h>
 #endif
 
-// PRIVATE DECLARATIONS:
-uintptr_t infilePtrToOffset(u32 infile_ptr, uintptr_t startOffset);
-u32 offsetToInfilePtr(uintptr_t fileOffset, uintptr_t startOffset);
-void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd);
-void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t, char path[], u32 pathLen, uintptr_t inf_fileDataAlloc);
+// STATIC DECLARATIONS:
+static uintptr_t infilePtrToOffset(u32 infile_ptr, uintptr_t startOffset);
+static u32 offsetToInfilePtr(uintptr_t fileOffset, uintptr_t startOffset);
+static void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd);
+static void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t, char path[], u32 pathLen, uintptr_t inf_fileDataAlloc);
 
-// PUBLIC DEFINITIONS:
+// GLOBAL DEFINITIONS:
 void scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     void *fileData;
     FILE *file;
@@ -137,18 +137,18 @@ void scanChunk(void *startOffset, void *endOffset, scan_foundCallback_t foundCal
 }
 
 
-// PRIVATE DEFINITIONS:
-uintptr_t infilePtrToOffset(u32 infile_ptr, uintptr_t startOffset){
+// STATIC DEFINITIONS:
+static uintptr_t infilePtrToOffset(u32 infile_ptr, uintptr_t startOffset){
     return startOffset + (infile_ptr >> 20) * 0x2000 + (infile_ptr & 0xFFFF) - 1;
 }
 
-u32 offsetToInfilePtr(uintptr_t offset, uintptr_t startOffset){
+static u32 offsetToInfilePtr(uintptr_t offset, uintptr_t startOffset){
     offset -= startOffset;
     return ((offset >> 13) << 20) + (offset & 0x1FFF) + 1;
 }
 
-// TODO: DOCS
-void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
+// TODO: REMOVE
+static void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
     u32 *p2p2Palette = chunkStart - 1;
     // loop breaks when pal is not found or when found a valid palette
     while(true){
@@ -161,17 +161,4 @@ void *matchColorPalette(void *gfxOffset, void *chunkStart, void *chunkEnd){
     }
     
     return infilePtrToOffset(*p2p2Palette, chunkStart);
-}
-
-uintptr_t findU32(void *startPtr, void *endPtr, u32 ORMask, u32 matchVal){
-    endPtr -= (endPtr - startPtr) % 4;
-    matchVal |= ORMask;
-    while(startPtr < endPtr){
-        if((ORMask | *((u32*)(startPtr))) == matchVal){
-            return (uptr) startPtr;
-        }
-
-        startPtr++;
-    }
-    return 0;
 }

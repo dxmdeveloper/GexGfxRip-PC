@@ -7,15 +7,15 @@
 #include "gfx.h"
 
 
-// PRIVATE DECLARATIONS:
+// STATIC DECLARATIONS:
 struct gfx_palette createDefaultPalette(bool _256colors, bool transparency);
-void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]);
+void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofilename[]);
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
 
-
-// CONSTANTS (only one assigment)
+// INMUTABLE (only one assigment)
+// TODO: REMOVE THIS
 struct gfx_palette const_grayscalePal256;
 struct gfx_palette const_grayscalePal16;
 
@@ -37,10 +37,10 @@ int main(int argc, char *argv[]) {
             fclose(testFile);
 
             // Scan found file
-            scan4Gfx(ifilename, onfound);
+            scan4Gfx(ifilename, onfoundClbFunc);
         }
     } else {
-        scan4Gfx(argv[argc-1], onfound);
+        scan4Gfx(argv[argc-1], onfoundClbFunc);
     }
     return 0;     
 }
@@ -48,26 +48,22 @@ int main(int argc, char *argv[]) {
 
 
 
-
-
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
-void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
+void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
+    void **image = NULL;
+    FILE * filep = NULL;
     struct gex_gfxHeader *gfxHeader = gfx;
 
-    void **image = NULL;
-
-    /*
-    // ! TESTING
-    gfxHeader->inf_imgWidth = 512;
-    gfxHeader->inf_imgHeight = 512;
-    */
-
-    // exceptions handling 
+    // Exception handling 
     if(palette == NULL) {
         fprintf(stderr, "Err: invalid gex color palette\n");
         if(gfxHeader->typeSignature & 1) palette = &const_grayscalePal256;
         else palette = &const_grayscalePal16;
+    }
+    if(ofilename == NULL){
+        fprintf(stderr, "Err: ofilename is nullptr (main.c:onfoundClbFunc)");
+        return;
     }
     else if((gfxHeader->typeSignature & 1) && palette->colorsCount < 256){
         fprintf(stderr, "Err: color palette and graphic types mismatch\n");
@@ -81,14 +77,23 @@ void onfound(void *gfx, const struct gfx_palette *palette, const char ofilename[
         return;
     }
     
+    // File opening
+    if((filep = fopen(ofilename, "wb")) == NULL){
+        fprintf(stderr, "Err: Cannot open file %s", ofilename);
+        free(image);
+        return;
+    }
+
     // PNG creation
     WritePng(ofilename, image, 
      gfxHeader->inf_imgWidth, gfxHeader->inf_imgHeight, palette);
 
-    //cleaning
+    // Cleaning
+    fclose(filep);
     free(image);
 }
 
+// TODO: REMOVE THIS
 struct gfx_palette createDefaultPalette(bool _256colors, bool transparency){
     struct gfx_palette pal = {0};
     if(transparency){

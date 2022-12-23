@@ -1,5 +1,6 @@
 #include "write_png.h"
 #include <stdlib.h>
+#include "basicdefs.h"
 
 u32 exitCode = 0;
 
@@ -8,23 +9,16 @@ void error_exit(struct png_struct_def * def, const char * msg){
     exit(0x504E47);
 }
 
-void WritePng(const char filename[], png_byte** image, const u32 width, const u32 height, const struct gfx_palette *pal){
-    FILE *fp = NULL;
+void WritePng(FILE * outfile, png_byte** image, const u32 width, const u32 height, const struct gfx_palette *pal){
     png_structp png_ptr = NULL;
     png_infop info_ptr = NULL;
 
-    
-    fp = fopen(filename, "wb");
-    if(fp == NULL){
-        printf("error: cannot open a file");
-        exit(0x46494C45);
-    }
 
     //Initialize PNG structures
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, error_exit, NULL);
     info_ptr = png_create_info_struct(png_ptr);
 
-    png_init_io(png_ptr, fp);
+    png_init_io(png_ptr, outfile);
 
     //Setting IHDR
     png_set_IHDR(
@@ -56,8 +50,8 @@ void WritePng(const char filename[], png_byte** image, const u32 width, const u3
     png_write_end(png_ptr, NULL);
 
     //clean
-    if (fp != NULL) fclose(fp);
-    if (info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
-    if (png_ptr != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+    if(outfile  != NULL) fclose(outfile);
+    if(info_ptr != NULL) png_free_data(png_ptr, info_ptr, PNG_FREE_ALL, -1);
+    if(png_ptr  != NULL) png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
 
 }
