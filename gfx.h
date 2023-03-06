@@ -1,17 +1,14 @@
 #pragma once
 
 #include <png.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
-#define IMG_CHUNKS_LIMIT 64
+#define IMG_CHUNKS_LIMIT 32
 #define IMG_MAX_WIDTH 2048
 #define IMG_MAX_HEIGHT 2048
 
-/*
-#pragma pack is required for 64 bit build in order to avoid structure paddings
-*/
-#pragma pack(push,1) 
 
 /** 
  *  @brief Header containing information about Gex graphic file;
@@ -24,30 +21,31 @@
  *  FF FF XX X1 - bitmap 8 bpp
  *  FF FF XX X4 - sprite 4 bpp
  *  FF FF XX X5 - sprite 8 bpp  */
+
 struct gex_gfxHeader {
     uint16_t _structPadding; 
 
     uint32_t inf_imgWidth;  ///< width of canvas, may be different than actual size
     uint32_t inf_imgHeight; ///< height of canvas, may be different than actual size
-    uint32_t bitmap_shiftX;
-    uint16_t bitmap_shiftY;
+    int32_t bitmap_shiftX;
+    int16_t bitmap_shiftY;
     uint32_t typeSignature;
 };
-#pragma pack(pop) 
+
 
 /** 
  * @brief bitmap in Gex is usually segmented;
  * gfxChunk struct contains information about one chunk of image;
  * Size: 8 Bytes */
-#pragma pack(push,1)
+
 struct gex_gfxChunk {
-    uint16_t startPointer; 
+    uint16_t startOffset; 
     uint8_t width;
     uint8_t height;
     int16_t rel_positionX;
     int16_t rel_positionY;
 };
-#pragma pack(pop)
+
 
 /** 
  *  @brief internal palette struct with png tRNS info 
@@ -66,6 +64,20 @@ struct gfx_palette {
 // ---------------- Functions ----------------
 //
 
+// --- structures parsing ---
+/** @brief parses gfxHeader from input file stream. Shifts stream cursor. Function does not validate data!
+    @return pointer to dest or null if failed to read stream */
+struct gex_gfxHeader * gex_gfxHeader_parsef(FILE * ifstream, struct gex_gfxHeader * dest);
+
+/** @brief parses gfxChunk from input file stream. Shifts stream cursor. Function does not validate data!
+    @return pointer to dest or null if failed to read stream */
+struct gex_gfxChunk * gex_gfxChunk_parsef(FILE * ifstream, struct gex_gfxChunk * dest);
+
+struct gex_gfxHeader gex_gfxHeader_parseAOB(uint8_t aob[20]);
+struct gex_gfxChunk gex_gfxChunk_parseAOB(uint8_t aob[8]);
+
+
+
 /** @brief creates palette from gex palette format.
  * gex palette format starts with (LE) 00 XX FF FF for 16 colors or 01 XX FF FF for 256 colors
  * @return struct gfx_palette. Object will have 0 colors if the gexPalette has invalid format */
@@ -76,12 +88,30 @@ struct gfx_palette gfx_createPalette(void *gexPalette);
 png_color bgr555toRgb888(uint16_t bgr555);
 
 
-/** @brief detects graphics type and creates bitmap. calls gfx_draw...
- *  @param chunksHeaders pointer to null terminated gex_gfxChunk structs.
- *  @param bitmapIDat pointer to actual image data.
- *  @return image matrix or null pointer if failed */
-uint8_t** gfx_drawImgFromRaw(struct gex_gfxChunk *chunksHeaders, uint8_t *bitmapIDat);
+/** @param gfxHeader array with minimum SIZE of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
+ *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
+size_t gfx_checkSizeOfBitmap(const void * gfxHeaders);
 
+
+//// /** @return size of graphic headers and bitmap data. */
+//// size_t gfx_checkTotalSizeOfGfx(void * gfxHeaders);
+
+
+/** @brief detects graphic's type and creates bitmap. calls gfx_draw...
+ *  @param gfxHeadersN size of gfxHeaders buffor in bytes.
+ *  @param gfxHeaders pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map.
+ *  @param bitmapDat pointer to actual image data. IMPORTANT: Use gfx_checkSizeOfBitmap to ensure how many bytes are needed to be read and allocated. 
+ *  @return image matrix or null pointer if failed */
+uint8_t** gfx_drawImgFromRaw(size_t gfxHeadersN, const void *gfxHeaders, const uint8_t bitmapDat[]);
+
+/** @brief detects graphic's type and creates bitmap. calls gfx_draw... gfx_drawImgFromRaw variation, compatibile with C/C++, eliminates problem with gfxHeaders size.
+ *  @param gfxHeadersFile pointer to FILE with position cursor set on graphic header 
+ *  @param bitmapDat pointer to actual image data. IMPORTANT: Use gfx_checkSizeOfBitmap to ensure how many bytes are needed to be read and allocated. 
+ *  @return image matrix or null pointer if failed */
+uint8_t** gfx_drawImgFromRawf(FILE * gfxHeadersFile, const uint8_t bitmapDat[]);
+
+
+// TODO: reimplementation of below functions
 
 /** @brief creates bitmap form PC/PSX 4/8 bpp bitmap (LE){(80 XX FF FF), (81 XX FF FF)};
  *  @param chunksHeaders pointer to null terminated gex_gfxChunk structs.

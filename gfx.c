@@ -1,6 +1,8 @@
 #include "gfx.h"
 #include <png.h>
 #include "basicdefs.h"
+#include "binary_parse.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -8,7 +10,7 @@
 //* PRIVATE DECLARATIONS:
 //
 void chunkRelDrawPixel(u8 **img, struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, bool is4bpp);
-bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, struct gex_gfxChunk *firstChunk);
+bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, const struct gex_gfxChunk *firstChunk);
 void **calloc2D(u32 y, u32 x, u8 sizeOfElement);
 void **malloc2D(u32 y, u32 x, u8 sizeOfElement);
 png_color bgr555toRgb888(u16 bgr555);
@@ -57,7 +59,60 @@ struct gfx_palette gfx_createPalette(void *gexPalette){
     return newPalette;
 }
 
-u8** gfx_drawImgFromRaw(void *pointer2Gfx){
+/*---- structures deserialization ----*/
+struct gex_gfxHeader *gex_gfxHeader_parsef(FILE * ifstream, struct gex_gfxHeader * dest){
+    if(!(fread_LE_U16(&dest->_structPadding, 1, ifstream))
+    || !(fread_LE_U32(&dest->inf_imgWidth, 1, ifstream))
+    || !(fread_LE_U32(&dest->inf_imgHeight, 1, ifstream))
+    || !(fread_LE_I32(&dest->bitmap_shiftX, 1, ifstream))
+    || !(fread_LE_I16(&dest->bitmap_shiftY, 1, ifstream))
+    || !(fread_LE_U32(&dest->typeSignature, 1, ifstream)))
+        return NULL;
+    return dest;
+}
+struct gex_gfxChunk *gex_gfxChunk_parsef(FILE * ifstream, struct gex_gfxChunk * dest){
+    if(!(fread_LE_U16(&dest->startOffset, 1, ifstream))
+    || !(fread(&dest->width, sizeof(u8), 1, ifstream))
+    || !(fread(&dest->height, sizeof(u8), 1, ifstream))
+    || !(fread_LE_I16(&dest->rel_positionX, 1, ifstream))
+    || !(fread_LE_I16(&dest->rel_positionY, 1, ifstream)))
+        return NULL;
+    return dest;
+}
+
+struct gex_gfxHeader gex_gfxHeader_parseAOB(uint8_t aob[20]){
+    struct gex_gfxHeader headerSt = {0};
+    headerSt._structPadding = aob_read_LE_U16(aob);
+    headerSt.inf_imgWidth   = aob_read_LE_U32(aob + 2);
+    headerSt.inf_imgHeight  = aob_read_LE_U32(aob + 6);
+    headerSt.bitmap_shiftX  = aob_read_LE_I32(aob + 10);
+    headerSt.bitmap_shiftY  = aob_read_LE_I16(aob + 14);
+    headerSt.typeSignature  = aob_read_LE_U32(aob + 16);
+    return headerSt;
+}
+struct gex_gfxChunk gex_gfxChunk_parseAOB(uint8_t aob[8]){
+    struct gex_gfxChunk chunkSt = {0};
+    chunkSt.startOffset = aob_read_LE_U16(aob);
+    chunkSt.width  = aob[2];
+    chunkSt.height = aob[3];
+    chunkSt.rel_positionX = aob_read_LE_I16(aob + 4);
+    chunkSt.rel_positionY = aob_read_LE_I16(aob + 6);
+}
+
+size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
+    u32 width = 0;
+    u32 height = 0;
+    //struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeaders);
+    if(checkSizeOfCanvas(&width, &height ,(struct gex_gfxChunk*)gfxHeaders + 20)){
+        //error
+        return 0;
+    }
+    return (size_t) width * height;
+}
+
+// TODO: reimplementation of below functions
+
+u8** gfx_drawImgFromRaw(size_t gfxHeadersN, const void *gfxHeaders, const uint8_t bitmapDat[]){
     struct gex_gfxHeader *header = pointer2Gfx;
     pointer2Gfx += 20;
 
@@ -78,6 +133,10 @@ u8** gfx_drawImgFromRaw(void *pointer2Gfx){
     }
     return NULL;
 
+}
+
+uint8_t** gfx_drawImgFromRawf(FILE * gfxHeadersFile, size_t bitmapN, const uint8_t bitmapDat[bitmapN]){
+    return NULL; // TODO: IMPLEMENT FUNCTION
 }
 
 u8** gfx_drawGexBitmap(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight){
@@ -102,11 +161,11 @@ u8** gfx_drawGexBitmap(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeig
     
     chunk = pointer2Gfx;
     //foreach chunk
-    while(chunk->startPointer > 0){
-        u8 *dataPtr = (u8*)pointer2Gfx + chunk->startPointer - 20;
+    while(chunk->startOffset > 0){
+        u8 *dataPtr = (u8*)pointer2Gfx + chunk->startOffset - 20;
 
         
-        if(chunk->startPointer > (width*height) / (is4bpp ? 2 : 1)){
+        if(chunk->startOffset > (width*height) / (is4bpp ? 2 : 1)){
             //Invalid graphic / misrecognized data
             free(image);
             return NULL;
@@ -158,7 +217,7 @@ u8** gfx_drawSprite(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight)
     
     // operation map length assignment
     chunk = pointer2Gfx;
-    while(chunk->startPointer > 0) chunk++;
+    while(chunk->startOffset) chunk++;
     operationMapLen = *((u32*)(chunk+1)) - 4;
     operationMapPtr = ((u8*)(chunk+1)) + 4; 
 
@@ -180,7 +239,7 @@ u8** gfx_drawSprite(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight)
                 if(cpix_i >= chunk->height*chunk->width) { 
                     //next chunk
                     chunk = chunk+1;
-                    if(chunk->startPointer == 0 || chunk->height*chunk->width == 0) 
+                    if(chunk->startOffset == 0 || chunk->height*chunk->width == 0) 
                         return image;
                     cpix_i = 0;
                 } 
@@ -197,7 +256,7 @@ u8** gfx_drawSprite(void* pointer2Gfx, bool is4bpp, u32 minWidth, u32 minHeight)
                 if(cpix_i >= chunk->height*chunk->width) { 
                     //next chunk
                     chunk = chunk+1;
-                    if(chunk->startPointer == 0 || chunk->height*chunk->width == 0) 
+                    if(chunk->startOffset == 0 || chunk->height*chunk->width == 0) 
                         return image;
                     cpix_i = 0;
                 } 
@@ -228,7 +287,7 @@ png_color bgr555toRgb888(u16 bgr555) {
 
 
 // -----------------------------------------------------
-// PRIVATE DEFINITIONS:
+// STATIC FUNCTION DEFINITIONS:
 // -----------------------------------------------------
 
 // draw pixel relative of chunk position
@@ -263,28 +322,29 @@ void **calloc2D(u32 y, u32 x, u8 sizeOfElement){
 }
 
 //returns true on error
-bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, struct gex_gfxChunk *firstChunk){
-    struct gex_gfxChunk *chunk = firstChunk;
+bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, const struct gex_gfxChunk *firstChunk){
+    struct gex_gfxChunk chunk = {0};
     u8 chunk_i = 0;
     
-    while(chunk->startPointer > 0){
+    while(chunk.startOffset > 0){
+        chunk = gex_gfxChunk_parseAOB((u8*)firstChunk);
         if(chunk_i > IMG_CHUNKS_LIMIT){
             fprintf(stderr, "Error: Chunks limit reached (gfx.c::checkSizeOfCanvas)\n"); 
             return true;
         }
         // Compare min required size with current canvas borders
-        if(chunk->rel_positionX + chunk->width > *ref_width){
-            *ref_width = chunk->rel_positionX + chunk->width;
+        if(chunk.rel_positionX + chunk.width > *ref_width){
+            *ref_width = chunk.rel_positionX + chunk.width;
         }
-        if(chunk->rel_positionY + chunk->height > *ref_height){
-            *ref_height = chunk->rel_positionY + chunk->height + 1;
+        if(chunk.rel_positionY + chunk.height > *ref_height){
+            *ref_height = chunk.rel_positionY + chunk.height + 1;
         }
         // chunk validatation
-        if(chunk->startPointer < 20){
+        if(chunk.startOffset < 20){
             // invalid graphic format / misrecognized data
             return true;
         }        
-        chunk = chunk+1;
+        firstChunk++;
         chunk_i++;
     }
     // canvas size validatation

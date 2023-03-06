@@ -20,11 +20,16 @@ if platform == 'windows'
   compiler_args += '-D_CRT_SECURE_NO_WARNINGS'
 endif
 
+if target_machine.endian() == 'big'
+  compiler_args += '-D__BIG_ENDIAN__'
+endif
+
 add_global_arguments(compiler_args, language : 'c')
 
 
 # header_include_directories : libpng_inc
 
+#TODO: OPTIONAL MINGW LIBRARIES
 if platform == 'windows'
   if arch == 'x86'
     libsPath =  join_paths(meson.source_root(), 'vcpkg/installed/x86-windows-static')

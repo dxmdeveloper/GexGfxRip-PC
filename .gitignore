@@ -1,0 +1,7 @@
+GEX*.LEV
+GEX*-rip/
+build-*/
+.vscode/
+null.d
+vcpkg
+builddir/
