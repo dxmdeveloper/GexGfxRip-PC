@@ -1,8 +1,10 @@
-#pragma once
+#ifndef _FILESCANNING_H_
+#define _FILESCANNING_H_ 1
 #include <stdlib.h>
 #include <stdint.h>
 #include "gfx.h"
 
+#define FILE_MIN_SIZE 128
 typedef void (*scan_foundCallback_t)(void*, const struct gfx_palette*, const char[]);
 
 /// @brief scans file for gex graphics files
@@ -18,3 +20,5 @@ void scan4Gfx(char filename[], scan_foundCallback_t);
 /// @param matchVal searched value.
 /// @return offset of found value. null if not found.
 uintptr_t findU32(void *startPtr, void *endPtr, uint32_t ORMask, uint32_t matchVal);
+
+#endif

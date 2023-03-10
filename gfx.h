@@ -1,4 +1,5 @@
-#pragma once
+#ifndef _GFX_H_
+#define _GFX_H_ 1
 
 #include <png.h>
 #include <stddef.h>
@@ -64,6 +65,7 @@ struct gfx_palette {
 // ---------------- Functions ----------------
 //
 
+
 // --- structures parsing ---
 /** @brief parses gfxHeader from input file stream. Shifts stream cursor. Function does not validate data!
     @return pointer to dest or null if failed to read stream */
@@ -73,8 +75,8 @@ struct gex_gfxHeader * gex_gfxHeader_parsef(FILE * ifstream, struct gex_gfxHeade
     @return pointer to dest or null if failed to read stream */
 struct gex_gfxChunk * gex_gfxChunk_parsef(FILE * ifstream, struct gex_gfxChunk * dest);
 
-struct gex_gfxHeader gex_gfxHeader_parseAOB(uint8_t aob[20]);
-struct gex_gfxChunk gex_gfxChunk_parseAOB(uint8_t aob[8]);
+struct gex_gfxHeader gex_gfxHeader_parseAOB(const uint8_t aob[20]);
+struct gex_gfxChunk gex_gfxChunk_parseAOB(const uint8_t aob[8]);
 
 
 
@@ -96,34 +98,36 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders);
 //// /** @return size of graphic headers and bitmap data. */
 //// size_t gfx_checkTotalSizeOfGfx(void * gfxHeaders);
 
+/** @brief reads graphic headers from FILE into array
+ *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function
+ *  @return size of dest array in bytes. 0 if headers are invalid. */
+size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest);
+
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw...
- *  @param gfxHeadersN size of gfxHeaders buffor in bytes.
- *  @param gfxHeaders pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map.
+ *  @param gfxHeaders pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gex_gfxHeadersFToAOB if you work with FILE*
  *  @param bitmapDat pointer to actual image data. IMPORTANT: Use gfx_checkSizeOfBitmap to ensure how many bytes are needed to be read and allocated. 
  *  @return image matrix or null pointer if failed */
-uint8_t** gfx_drawImgFromRaw(size_t gfxHeadersN, const void *gfxHeaders, const uint8_t bitmapDat[]);
+uint8_t **gfx_drawImgFromRaw(const void *gfxHeaders, const uint8_t bitmapDat[]);
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw... gfx_drawImgFromRaw variation, compatibile with C/C++, eliminates problem with gfxHeaders size.
  *  @param gfxHeadersFile pointer to FILE with position cursor set on graphic header 
- *  @param bitmapDat pointer to actual image data. IMPORTANT: Use gfx_checkSizeOfBitmap to ensure how many bytes are needed to be read and allocated. 
+ *  @param bitmapDat pointer to actual image data. if nullpointer given bitmapDat will be read from the FILE.  
  *  @return image matrix or null pointer if failed */
-uint8_t** gfx_drawImgFromRawf(FILE * gfxHeadersFile, const uint8_t bitmapDat[]);
-
-
-// TODO: reimplementation of below functions
+uint8_t **gfx_drawImgFromRawf(FILE * gfxHeadersFile, const uint8_t * bitmapDat);
 
 /** @brief creates bitmap form PC/PSX 4/8 bpp bitmap (LE){(80 XX FF FF), (81 XX FF FF)};
  *  @param chunksHeaders pointer to null terminated gex_gfxChunk structs.
  *  @param bitmapIDat pointer to actual image data.
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-uint8_t** gfx_drawGexBitmap(struct gex_gfxChunk *chunksHeaders, uint8_t *bitmapIDat, bool is4bpp, uint32_t minWidth, uint32_t minHeight);
-
+uint8_t **gfx_drawGexBitmap(const void * chunkHeaders, const uint8_t bitmapDat[], bool is4bpp, uint32_t minWidth, uint32_t minHeight);
 
 /** @brief creates bitmap form PC/PSX 4/8 bpp sprite (LE){(84 XX FF FF), (85 XX FF FF)};
  *  @param chunksHeadersAndOpMap pointer to null terminated gex_gfxChunk structs and operations map.
  *  @param bitmapIDat pointer to actual image data.
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-uint8_t** gfx_drawSprite(struct gex_gfxChunk *chunksHeadersAndOpMap, uint8_t *bitmapIDat, bool is4bpp, uint32_t minWidth, uint32_t minHeight);
+uint8_t **gfx_drawSprite(const void *chunksHeadersAndOpMap, const uint8_t bitmapDat[], bool is4bpp, uint32_t minWidth, uint32_t minHeight);
+
+#endif
