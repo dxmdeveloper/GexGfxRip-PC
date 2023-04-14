@@ -54,7 +54,7 @@ endif
 
 deps = [zlib_dep, libpng_dep]
 
-src = ['main.c', 'write_png.c', 'gfx.c', 'filescanning.c']
+src = ['main.c', 'write_png.c', 'gfx.c', 'filescanning.c', 'binary_parse.c']
 exe = executable('gexgfxrip', src, dependencies : deps)
 
 test('simple test', exe)

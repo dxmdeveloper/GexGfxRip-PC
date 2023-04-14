@@ -61,20 +61,20 @@ struct gfx_palette gfx_createPalette(void *gexPalette){
 
 /*---- structures deserialization ----*/
 struct gex_gfxHeader *gex_gfxHeader_parsef(FILE * ifstream, struct gex_gfxHeader * dest){
-    if(!fread_LE_U16(&dest->_structPadding, 1, ifstream)) return NULL;
-    if(!fread_LE_U32(&dest->inf_imgWidth, 1, ifstream))   return NULL;
-    if(!fread_LE_U32(&dest->inf_imgHeight, 1, ifstream))  return NULL;
-    if(!fread_LE_I32(&dest->bitmap_shiftX, 1, ifstream))  return NULL;
-    if(!fread_LE_I16(&dest->bitmap_shiftY, 1, ifstream))  return NULL;
+    fread_LE_U16(&dest->_structPadding, 1, ifstream);
+    fread_LE_U32(&dest->inf_imgWidth, 1, ifstream);
+    fread_LE_U32(&dest->inf_imgHeight, 1, ifstream);
+    fread_LE_I32(&dest->bitmap_shiftX, 1, ifstream);
+    fread_LE_I16(&dest->bitmap_shiftY, 1, ifstream);
     if(!fread_LE_U32(&dest->typeSignature, 1, ifstream))  return NULL;
         
     return dest;
 }
 struct gex_gfxChunk *gex_gfxChunk_parsef(FILE * ifstream, struct gex_gfxChunk * dest){
-    if(!fread_LE_U16(&dest->startOffset, 1, ifstream))   return NULL;
-    if(!fread(&dest->width, sizeof(u8), 1, ifstream))    return NULL;
-    if(!fread(&dest->height, sizeof(u8), 1, ifstream))   return NULL;
-    if(!fread_LE_I16(&dest->rel_positionX, 1, ifstream)) return NULL;
+    fread_LE_U16(&dest->startOffset, 1, ifstream);
+    fread(&dest->width, sizeof(u8), 1, ifstream);
+    fread(&dest->height, sizeof(u8), 1, ifstream);
+    fread_LE_I16(&dest->rel_positionX, 1, ifstream);
     if(!fread_LE_I16(&dest->rel_positionY, 1, ifstream)) return NULL;
 
     return dest;

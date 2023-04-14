@@ -19,10 +19,11 @@
 enum fsmod_level_type_enum {
     FSMOD_LEVEL_TYPE_FOPEN_ERROR    = -1,
     FSMOD_LEVEL_TYPE_FILE_TOO_SMALL = -2,
+    FSMOD_LEVEL_TYPE_FREAD_ERROR    = -3,
     FSMOD_LEVEL_TYPE_STANDARD       = 0,
     FSMOD_LEVEL_TYPE_GFX_ONLY       = 1,
-    FSMOD_LEVEL_TYPE_NO_TILES_FLAG  = 1 << 1,
-    FSMOD_LEVEL_TYPE_NO_GFX_FLAG    = 1 << 2,
+    FSMOD_LEVEL_FLAG_NO_TILES  = 1 << 1,
+    FSMOD_LEVEL_FLAG_NO_GFX    = 1 << 2,
 };
 
 // STATIC DECLARATIONS:
@@ -48,17 +49,48 @@ static int fsmod_files_init(struct fsmod_files * filesStp, char filename[]);
 static void fsmod_files_close(struct fsmod_files * filesStp);
 
 // Extern functions definitions:
+// Main module function
+
 void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     struct fsmod_files filesSt = {0};
     int fileType = 0;
-    // TODO: finish it
+    
+    // -------------------------------- reading error macro definition ---------------------------------
+    #define onFileReadError()                                                                          \
+        fprintf(stderr, "Error occured while reading file %s. The file may be corrupted\n", filename); \
+        fsmod_files_close(&filesSt);                                                                   \
+        return                                                                                         \
+    // -------------------------------------------------------------------------------------------------
+
     switch(fileType = fsmod_files_init(&filesSt, filename)){
-        case 0: break;
-        case 1: break;
+        case FSMOD_LEVEL_TYPE_STANDARD: {
+            if(!(fileType & FSMOD_LEVEL_FLAG_NO_GFX)){
+                u32 gfxEp = 0;
+                if(!fread_LE_U32(&gfxEp, 1, filesSt.gfxPtrsFp)) onFileReadError();
+                gfxEp = (u32)fsmod_infilePtrToOffset(gfxEp, filesSt.gfxChunkOffset);
+                fseek(filesSt.gfxPtrsFp, gfxEp, SEEK_SET);
+
+                if(!(fileType & FSMOD_LEVEL_FLAG_NO_TILES)){
+                    // #---- Scan for tiles ----#
+                    u32 tilesEp = 0;
+                    if(!fread_LE_U32(&tilesEp, 1, filesSt.tilesPtrsFp)) onFileReadError();
+                    tilesEp = (u32)fsmod_infilePtrToOffset(tilesEp, filesSt.tilesChunkOffset);
+                    fseek(filesSt.tilesPtrsFp, tilesEp, SEEK_SET);
+                }
+                 /*
+                * TODO: GFX Chunk scan here
+                */
+            }
+            /*
+             * TODO: Intro graphics scan here
+            */
+        } break;
+        case FSMOD_LEVEL_TYPE_GFX_ONLY: break;
         case -1: fprintf(stderr, "Failed to open file %s", filename);
         case -2: fsmod_files_close(&filesSt); return;
     }
     fsmod_files_close(&filesSt);
+    #undef onFileReadError
 }
 
 // STATIC DEFINITIONS:
@@ -76,6 +108,7 @@ static int fsmod_files_init(struct fsmod_files * filesStp, char filename[]){
 
     if(fileSize < FILE_MIN_SIZE) return -2;
     //read first value
+    rewind(fp);
     if(!fread_LE_U32(&fileChunksCount, 1, fp)) return -3;
 
     // Check file type
@@ -93,8 +126,10 @@ static int fsmod_files_init(struct fsmod_files * filesStp, char filename[]){
                 fclose(fp);
                 return -1;
             }
-            fseek(filesStp->tilesDataFp, filesStp->tilesChunkOffset + filesStp->tilesChunkSize / 8192 /* TODO: check */, SEEK_SET);
-            fseek(filesStp->tilesPtrsFp, filesStp->tilesChunkOffset + filesStp->tilesChunkSize / 8192, SEEK_SET);
+            // non-ptr int arithmetics below
+            u32 epOffset = filesStp->tilesChunkOffset + filesStp->tilesChunkSize / 2048 + 4; //< entry point address for ptrs lookup
+            fseek(filesStp->tilesDataFp, filesStp->tilesChunkOffset, SEEK_SET); 
+            fseek(filesStp->tilesPtrsFp, epOffset, SEEK_SET);
         } 
         else retVal |= 2;
         // GFX chunk setup
@@ -107,8 +142,10 @@ static int fsmod_files_init(struct fsmod_files * filesStp, char filename[]){
                 fclose(fp);
                 return -1;
             }
+            // non-ptr int arithmetics below
+            u32 epOffset = filesStp->gfxChunkOffset + filesStp->gfxChunkSize / 2048 + 4; //< entry point address for ptrs lookup
             fseek(filesStp->gfxDataFp, filesStp->gfxChunkOffset + filesStp->gfxChunkSize / 8192, SEEK_SET);
-            fseek(filesStp->gfxPtrsFp, filesStp->gfxChunkOffset + filesStp->gfxChunkSize / 8192, SEEK_SET);
+            fseek(filesStp->gfxPtrsFp, epOffset, SEEK_SET);
         }
         else retVal |= 4;
     }

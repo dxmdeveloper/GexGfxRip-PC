@@ -37,10 +37,10 @@ int main(int argc, char *argv[]) {
             fclose(testFile);
 
             // Scan found file
-            scan4Gfx(ifilename, onfoundClbFunc);
+            fsmod_scan4Gfx(ifilename, onfoundClbFunc);
         }
     } else {
-        scan4Gfx(argv[argc-1], onfoundClbFunc);
+        fsmod_scan4Gfx(argv[argc-1], onfoundClbFunc);
     }
     return 0;     
 }
@@ -50,6 +50,7 @@ int main(int argc, char *argv[]) {
 
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
+// TODO: Reimplement
 void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
     void **image = NULL;
     FILE * filep = NULL;
@@ -71,7 +72,7 @@ void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofi
     }
     
     // Image creation
-    image = gfx_drawImgFromRaw(gfx);
+    //image = gfx_drawImgFromRaw(gfx);
     if(image == NULL) {
         dbg_errlog("DEBUG: failed to create %s", ofilename);
         return;

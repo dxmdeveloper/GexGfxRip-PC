@@ -98,8 +98,8 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders);
 //// /** @return size of graphic headers and bitmap data. */
 //// size_t gfx_checkTotalSizeOfGfx(void * gfxHeaders);
 
-/** @brief reads graphic headers from FILE into array
- *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function
+/** @brief reads graphic headers from FILE into the dest array
+ *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function!
  *  @return size of dest array in bytes. 0 if headers are invalid. */
 size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest);
 
