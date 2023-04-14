@@ -11,7 +11,7 @@ typedef void (*scan_foundCallback_t)(void*, const struct gfx_palette*, const cha
 /// @param filename path to file to read
 /// @param foundCallback callback function which is executed on every found graphic. 
 /// takes 2 arguments: pointer to found graphic and pointer to assigned color palette (may be null ptr).
-void scan4Gfx(char filename[], scan_foundCallback_t);
+void fsmod_scan4Gfx(char filename[], scan_foundCallback_t);
 
 
 /// @brief function scanning memory for u32 value
