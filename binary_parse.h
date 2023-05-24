@@ -26,4 +26,5 @@ uint32_t aob_read_LE_U32(const void * src);
 int32_t aob_read_LE_I32 (const void * src);
 uint16_t aob_read_LE_U16(const void * src);
 int16_t aob_read_LE_I16 (const void * src);
+
 #endif

@@ -12,9 +12,12 @@ typedef uint16_t u16;
 typedef int16_t i16;
 typedef uint8_t u8;
 typedef int8_t i8;
-typedef float f32;
-typedef double f64;
 typedef uintptr_t uptr;
+
+typedef struct u32pair_struct {
+    uint32_t first;
+    uint32_t second;
+} u32pair;
 
 #ifdef _WIN32
     #define PATH_SEP "\\"

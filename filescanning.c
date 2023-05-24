@@ -7,6 +7,8 @@
 #include "gfx.h"
 #include "binary_parse.h"
 
+/// NOTICE: Setting a file position beyond end of the file is UB, but most platforms handle it lol.
+
 // mkdir / stat
 #ifdef _WIN32
     #include <direct.h>
@@ -52,8 +54,10 @@ static int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]
 static void fsmod_files_close(struct fsmod_files * filesStp);
 
 /** @param nextOffset value returned by previous call of this function or 0 for the first call
-    @return next record block offset or NULL. -1 on fail */
-static u32 fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32 nextOffset);
+    @return offsets to infile_ptr for next tiles set. First for tiles chunk, second for gfx chunk.
+            first will be 0 if last set was just read.
+            last will be ~0 there's no tile sets or error occured during file read. ferror & feof should be called */
+static u32pair fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32pair nextOffsets);
 
 
 // Extern functions definitions:
@@ -86,7 +90,7 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
                     u32 tilesEp = 0;
                     if(!fread_LE_U32(&tilesEp, 1, filesSt.tilesPtrsFp)) longjmp(errJmpBuf, 1);
                     tilesEp = (u32)fsmod_infilePtrToOffset(tilesEp, filesSt.tilesChunkOffset);
-                    fseek(filesSt.tilesPtrsFp + 0x21, tilesEp, SEEK_SET);
+                    
                     // 
                 }
                  /*
@@ -110,7 +114,7 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
 
 //  --- part of fsmod_files_init ---
 /// @return -1 fopen failed (don't forget to close mainFp in client), 0 success, 1 invalid chunk
-static int _fsmod_files_init_open_and_set(const char filename[], FILE * mainFp, size_t fileSize, FILE * ptrsFp, FILE * dataFp, u32 * chunkSizep, u32 * chunkOffsetp, u32 * chunkEpp){
+static inline int _fsmod_files_init_open_and_set(const char filename[], FILE * mainFp, size_t fileSize, FILE * ptrsFp, FILE * dataFp, u32 * chunkSizep, u32 * chunkOffsetp, u32 * chunkEpp){
     fread_LE_U32(chunkSizep, 1, mainFp);
     fread_LE_U32(chunkOffsetp, 1, mainFp);
     if((*chunkOffsetp && *chunkSizep > 32 && *chunkOffsetp + *chunkSizep <= fileSize)) return 1;
@@ -150,7 +154,7 @@ static int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]
         //FILE TYPE: STANDARD LEVEL
 
         // Tiles chunk setup
-        fseek(fp, 0x28, SEEK_SET);
+        fseek(fp, 0x28, SEEK_SET); 
         switch(_fsmod_files_init_open_and_set(filename, fp, fileSize,
                                           filesStp->tilesPtrsFp, filesStp->tilesDataFp,&filesStp->tilesChunkSize,
                                           &filesStp->tilesChunkOffset,&filesStp->tilesChunkEp)) {
@@ -184,11 +188,20 @@ static void fsmod_files_close(struct fsmod_files * filesStp){
     if(filesStp->tilesPtrsFp) {fclose(filesStp->tilesPtrsFp); filesStp->tilesPtrsFp = NULL;}
 }
 
-static u32 fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32 nextOffset){
-    // TODO: IMPLEMENT
-    // ! asdfasdfasdfasdfasdfasdf 
+static u32pair fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32pair nextOffset){
+    u32 u32val;
+    if(!nextOffset.first){
+        // GFX CHUNK FILE POINTER SETUP
+        fseek(filesStp->gfxPtrsFp, filesStp->gfxChunkEp + 0x21, SEEK_SET);
+        if(!fread_LE_U32(&u32val, 1, filesStp->gfxPtrsFp)) return (u32pair){0, ~0};
+        fseek(filesStp->gfxPtrsFp, fsmod_infilePtrToOffset(u32val, filesStp->gfxChunkOffset), SEEK_SET);
+        if(!fread_LE_U32(&nextOffset.second, 1, filesStp->gfxPtrsFp)) return (u32pair){0, ~0};
+        // TILES CHUNK FILE POINTER SETUP
+        fseek(filesStp->tilesPtrsFp, filesStp->tilesChunkEp, SEEK_SET);
+        if(!fread_LE_U32(&nextOffset.first, 1, filesStp->tilesPtrsFp)) return (u32pair){0, ~0};
+    }
+    // TODO: finish it!
 }
-
 static uptr fsmod_infilePtrToOffset(u32 infile_ptr, uptr startOffset){
     return startOffset + (infile_ptr >> 20) * 0x2000 + (infile_ptr & 0xFFFF) - 1;
 }
