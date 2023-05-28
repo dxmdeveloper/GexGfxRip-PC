@@ -1,5 +1,6 @@
 GEX*.LEV
 GEX*-rip/
+tiles/
 build-*/
 .vscode/
 null.d

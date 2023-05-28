@@ -9,7 +9,7 @@
 
 // STATIC DECLARATIONS:
 struct gfx_palette createDefaultPalette(bool _256colors, bool transparency);
-void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofilename[]);
+void onfoundClbFunc(const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char filename[]);
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
@@ -50,29 +50,32 @@ int main(int argc, char *argv[]) {
 
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
-// TODO: Reimplement
-void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofilename[]){
-    void **image = NULL;
+void onfoundClbFunc(const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char ofilename[]){
+    png_byte ** image = NULL;
     FILE * filep = NULL;
-    struct gex_gfxHeader *gfxHeader = gfx;
+    struct gex_gfxHeader gfxHeader = {0};
+    u32 realWidth = 0, realHeight = 0;
+
+    gfxHeader = gex_gfxHeader_parseAOB(headerAndOpMap);
 
     // Exception handling 
     if(palette == NULL) {
         fprintf(stderr, "Err: invalid gex color palette\n");
-        if(gfxHeader->typeSignature & 1) palette = &const_grayscalePal256;
+        if(gfxHeader.typeSignature & 1) palette = &const_grayscalePal256;
         else palette = &const_grayscalePal16;
     }
+    
     if(ofilename == NULL){
         fprintf(stderr, "Err: ofilename is nullptr (main.c:onfoundClbFunc)");
         return;
     }
-    else if((gfxHeader->typeSignature & 1) && palette->colorsCount < 256){
+    else if((gfxHeader.typeSignature & 1) && palette->colorsCount < 256){
         fprintf(stderr, "Err: color palette and graphic types mismatch\n");
         return;
     }
     
     // Image creation
-    //image = gfx_drawImgFromRaw(gfx);
+    image = gfx_drawImgFromRaw(headerAndOpMap, bitmap);
     if(image == NULL) {
         dbg_errlog("DEBUG: failed to create %s", ofilename);
         return;
@@ -85,9 +88,13 @@ void onfoundClbFunc(void *gfx, const struct gfx_palette *palette, const char ofi
         return;
     }
 
+    gfx_calcRealWidthAndHeight(&realWidth, &realHeight, headerAndOpMap+20);
+    gfxHeader.inf_imgWidth = MAX(gfxHeader.inf_imgWidth, realWidth);
+    gfxHeader.inf_imgHeight = MAX(gfxHeader.inf_imgHeight, realHeight);
+
     // PNG creation
-    WritePng(ofilename, image, 
-     gfxHeader->inf_imgWidth, gfxHeader->inf_imgHeight, palette);
+    WritePng(filep, image, 
+    gfxHeader.inf_imgWidth, gfxHeader.inf_imgHeight, palette);
 
     // Cleaning
     fclose(filep);

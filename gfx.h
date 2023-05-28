@@ -130,4 +130,7 @@ uint8_t **gfx_drawGexBitmap(const void * chunkHeaders, const uint8_t bitmapDat[]
  *  @return NULL Pointer if failed! */
 uint8_t **gfx_drawSprite(const void *chunksHeadersAndOpMap, const uint8_t bitmapDat[], bool is4bpp, uint32_t minWidth, uint32_t minHeight);
 
+/** @brief calcs real sizes of graphic.
+    @return true if sizes are invalid. false if everything is ok.*/
+bool gfx_calcRealWidthAndHeight(uint32_t *ref_width, uint32_t *ref_height, const void *firstChunk);
 #endif

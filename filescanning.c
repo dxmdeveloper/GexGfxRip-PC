@@ -12,8 +12,10 @@
 // mkdir / stat
 #ifdef _WIN32
     #include <direct.h>
+    #define MAKEDIR(x) _mkdir(x)
 #else //POSIX
     #include <sys/stat.h>
+    #define MAKEDIR(x) mkdir(x, 0755)
 #endif
 
 // ___________________________________________________ STRUCTURES ___________________________________________________
@@ -103,13 +105,19 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     int fileType = 0;
     enum fsmod_file_read_errno_enum read_errno = 0;
 
+    char * eFilename = malloc(strlen(filename)+201);
+
+
+
     // File reading error jump location
     if((read_errno = setjmp(filesSt.error_jmp_buf))){
         fprintf(stderr, "Error occured while reading file %s. The file may be corrupted\n fsmod_file_read_errno: %i\n", filename, read_errno);
+        if(eFilename) free(eFilename);
         fsmod_files_close(&filesSt);
         return;
     }
     // --------------------------------
+
 
 
     switch(fileType = fsmod_files_init(&filesSt, filename)){
@@ -119,18 +127,88 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
                 if(!(fileType & FSMOD_LEVEL_FLAG_NO_TILES)){
                     // #---- Scan for tiles ----#
                     u32pair u32values = {0};
-                    u32values = fsmod_head_to_tiles_records(&filesSt, u32values);
-                    if(u32values.first || u32values.second != ~0){
+                    u32pair nextOffsets = {0};
+                    uint blocksCnt = 0;
+                    uint entryInBlockIndex = 0;
+                    uint entriesCnt = 0;
+
+                    //TODO GIVE OPTION NOT TO CREATE A DIR
+                    sprintf(eFilename, "%s-rip", filename);
+                    MAKEDIR(eFilename);
+                    strcat(eFilename,"/tiles");
+                    MAKEDIR(eFilename);
+
+                    nextOffsets = fsmod_head_to_tiles_records(&filesSt, nextOffsets);
+                    if(nextOffsets.first || nextOffsets.second != ~0){
                         do {
+                            //!
+                            // TODO: Ogranąć to
                             /// ! TESTS
                             fprintf(stdout, "tile records block offset: %lX\n", ftell(filesSt.gfxPtrsFp));
                             fprintf(stdout, "tile bitmap pointers block offset: %lX\n", ftell(filesSt.tilesPtrsFp));
 
-                            fseek(filesSt.gfxPtrsFp, 4, SEEK_CUR); // TODO: find out what first u32 value mean
+                            fseek(filesSt.gfxPtrsFp, 8, SEEK_CUR); // TODO: find out what first u32 value mean
+                            u32values = fsmod_read_infile_ptr_from_both(&filesSt);
+                            if(u32values.second != ~0){
+                                do {
+                                    void * bitmap = NULL;
+                                    void * header = NULL;
+                                    void * palData = NULL;
+                                    struct gfx_palette pal = {0};
+                                    size_t bitmap_size = 0, required_size = 0, pal_size = 0;
+                                    u16 tileWidthAndHeight[2] = {0};
+    
+                                    fseek(filesSt.tilesDataFp, u32values.first, SEEK_SET);
+                                    fseek(filesSt.gfxDataFp, u32values.second, SEEK_SET);
+
+                                    fread_LE_U16(tileWidthAndHeight, 2, filesSt.tilesDataFp); // TODO: error handling
+                                    bitmap_size = tileWidthAndHeight[0] * 2 * tileWidthAndHeight[1];
+
+                                    if(!gex_gfxHeadersFToAOB(filesSt.gfxDataFp, &header)) /* <- mem allocated */{
+                                        // handle error here
+                                        exit(0xFACC); // TODO: better handling pls
+                                    } 
+                                    required_size = gfx_checkSizeOfBitmap(header);
+                                    //! TESTS 
+                                    // TODO: fix bitmap size calc
+                                    bitmap_size *= 2; // ?????
+
+                                    if(/*bitmap_size >= required_size &&*/ required_size){
+                                        // bitmap data read
+                                        if(!(bitmap = malloc(required_size))) exit(0xbeef);
+                                        fread(bitmap, 1, required_size, filesSt.tilesDataFp); // TODO: error handling
+
+                                        // palette read
+                                        u32values.first = fsmod_read_infile_ptr(filesSt.gfxPtrsFp, filesSt.gfxChunkOffset, filesSt.error_jmp_buf);
+                                        fseek(filesSt.gfxDataFp, u32values.first, SEEK_SET);
+
+                                        // TODO : Move to a new function
+                                        pal_size = 4 +(gex_gfxHeader_parseAOB(header).typeSignature & 1 ? 256 : 16) * 2;
+                                        palData = malloc(pal_size);
+                                        fread(palData, 1, pal_size, filesSt.gfxDataFp); // TODO: error handling
+                                        pal = gfx_createPalette(palData);
+
+                                        // preparing filename
+                                        sprintf(eFilename, "%s-rip/tiles/%u-%u-%04X.png", filename, blocksCnt, entryInBlockIndex, entriesCnt+2);
+
+                                        // CALLING ONFOUND CALLBACK
+                                        foundCallback(bitmap, header, &pal, eFilename);
+                                    }
+
+                                    if(palData) free(palData);
+                                    if(header) free(header);
+                                    if(bitmap) free(bitmap);
+
+                                    entryInBlockIndex++; entriesCnt++;
+                                    fseek(filesSt.gfxPtrsFp,8, SEEK_CUR);
+                                    u32values = fsmod_read_infile_ptr_from_both(&filesSt);
+                                } while(u32values.first != 0);
+                            }
 
                             // next tile set
-                            u32values = fsmod_head_to_tiles_records(&filesSt, u32values);
-                        } while (u32values.first);
+                            blocksCnt++; entryInBlockIndex = 0;
+                            nextOffsets = fsmod_head_to_tiles_records(&filesSt, nextOffsets);
+                        } while (nextOffsets.first);
                     }
                 }
                  /*
@@ -146,6 +224,7 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
         case -1: fprintf(stderr, "Failed to open file %s", filename);
         case -2: fsmod_files_close(&filesSt); return;
     }
+    if(eFilename) free(eFilename);
     fsmod_files_close(&filesSt);
 }
 

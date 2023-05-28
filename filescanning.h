@@ -5,7 +5,7 @@
 #include "gfx.h"
 
 #define FILE_MIN_SIZE 128
-typedef void (*scan_foundCallback_t)(void*, const struct gfx_palette*, const char[]);
+typedef void (*scan_foundCallback_t)(void * bitmap, void * headerAndOpMap, const struct gfx_palette*, const char filename[]);
 
 /// @brief scans file for gex graphics files
 /// @param filename path to file to read

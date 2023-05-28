@@ -4,6 +4,9 @@
 #include <stdbool.h>
 #include <string.h>
 
+#define MIN(a,b) (((a)<(b))?(a):(b))
+#define MAX(a,b) (((a)>(b))?(a):(b))
+
 // typedef uint64_t u64;
 // typedef int64_t i64;
 typedef uint32_t u32;

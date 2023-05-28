@@ -10,7 +10,6 @@
 //* PRIVATE DECLARATIONS:
 //
 void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, bool is4bpp);
-bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, const struct gex_gfxChunk *firstChunk);
 void **calloc2D(u32 y, u32 x, u8 sizeOfElement);
 void **malloc2D(u32 y, u32 x, u8 sizeOfElement);
 png_color bgr555toRgb888(u16 bgr555);
@@ -20,7 +19,7 @@ png_color bgr555toRgb888(u16 bgr555);
 //* PUBLIC DEFINITIONS:
 //
 struct gfx_palette gfx_createPalette(void *gexPalette){
-    struct gfx_palette newPalette;
+    struct gfx_palette newPalette = {0};
     u16 *colors = (u16*)(gexPalette+4);
     newPalette.tRNS_count = 0;
     
@@ -39,7 +38,6 @@ struct gfx_palette gfx_createPalette(void *gexPalette){
             newPalette.colorsCount = 256;
             break;
         default:
-            newPalette.colorsCount = 0;
             return newPalette;
     }
     
@@ -105,25 +103,30 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 width = 0;
     u32 height = 0;
     //struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeaders);
-    if(checkSizeOfCanvas(&width, &height ,(struct gex_gfxChunk*)gfxHeaders + 20)){
+    if(gfx_calcRealWidthAndHeight(&width, &height ,gfxHeaders + 20)){
         //error
         return 0;
     }
     return (size_t) width * height;
 }
 
-// TODO: reimplementation of below functions
+// TODO: reimplementation of below functions (done?)
 
 uint8_t **gfx_drawImgFromRaw(const void *gfxHeaders, const uint8_t bitmapDat[]){
     struct gex_gfxHeader header = {0};
+    u32 realWidth = 0, realHeight = 0;
 
     if(gfxHeaders == NULL || bitmapDat == NULL) return NULL;
 
     header = gex_gfxHeader_parseAOB((u8*)gfxHeaders);
     gfxHeaders += 20;
     
-    if(header.inf_imgWidth < 2 || header.inf_imgHeight < 2 
-    || header.inf_imgWidth > IMG_MAX_WIDTH || header.inf_imgHeight > IMG_MAX_HEIGHT) return NULL;
+    // Setting min sizes
+    if(header.inf_imgWidth > IMG_MAX_WIDTH || header.inf_imgHeight > IMG_MAX_HEIGHT) return NULL;
+
+    gfx_calcRealWidthAndHeight(&realWidth, &realHeight, gfxHeaders);
+    header.inf_imgWidth = MAX(header.inf_imgWidth, realWidth);
+    header.inf_imgHeight = MAX(header.inf_imgHeight, realHeight);
 
     switch (header.typeSignature & 0x00000005)
     {
@@ -166,13 +169,13 @@ size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest){
     // file position restore and read all into the headersBuffor
     fseek(gfxHeadersFile, filePositionSave, SEEK_SET);
     headersBuffor = malloc(headersSize);
-    if(fread(headersBuffor, 1, headersSize, gfxHeadersFile)){
+    if(!fread(headersBuffor, 1, headersSize, gfxHeadersFile)){
         free(headersBuffor);
         return 0;
     }
 
     // successful end of function
-    dest = (void**) headersBuffor;
+    *dest = headersBuffor;
     return headersSize;
 }
 
@@ -222,7 +225,7 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], bool is
         return NULL;
     }
 
-    if(checkSizeOfCanvas(&width, &height, chunkHeaders)){
+    if(gfx_calcRealWidthAndHeight(&width, &height, chunkHeaders)){
         return NULL;
     }
     
@@ -283,7 +286,7 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
     }
     
     
-    if(checkSizeOfCanvas(&width, &height, chunksHeadersAndOpMap)){
+    if(gfx_calcRealWidthAndHeight(&width, &height, chunksHeadersAndOpMap)){
         return NULL;
     }
 
@@ -413,13 +416,12 @@ void **calloc2D(u32 y, u32 x, u8 sizeOfElement){
     return arr;
 }
 
-//returns true on error
-bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, const struct gex_gfxChunk *firstChunk){
+bool gfx_calcRealWidthAndHeight(u32 *ref_width, u32 *ref_height, const void *firstChunk){
     struct gex_gfxChunk chunk = {0};
     u8 chunk_i = 0;
     
+    chunk = gex_gfxChunk_parseAOB((u8*)firstChunk);
     while(chunk.startOffset > 0){
-        chunk = gex_gfxChunk_parseAOB((u8*)firstChunk);
         if(chunk_i > IMG_CHUNKS_LIMIT){
             fprintf(stderr, "Error: Chunks limit reached (gfx.c::checkSizeOfCanvas)\n"); 
             return true;
@@ -436,7 +438,8 @@ bool checkSizeOfCanvas(u32 *ref_width, u32 *ref_height, const struct gex_gfxChun
             // invalid graphic format / misrecognized data
             return true;
         }        
-        firstChunk++;
+        firstChunk+=8;
+        chunk = gex_gfxChunk_parseAOB((u8*)firstChunk);
         chunk_i++;
     }
     // canvas size validatation
