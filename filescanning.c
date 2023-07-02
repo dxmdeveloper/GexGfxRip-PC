@@ -353,16 +353,15 @@ inline static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * fil
     if(/*bitmap_size >= required_size &&*/ required_size){
         // bitmap data read
         if(!(bitmap = malloc(required_size))) exit(0xbeef);
-        fsmod_fread(bitmap, 1, required_size, filesStp->tilesDataFp, loc_error_jmp_buf); // TODO: error handling
+        fsmod_fread(bitmap, 1, required_size, filesStp->tilesDataFp, loc_error_jmp_buf); 
 
         // palette read
         offset = fsmod_read_infile_ptr(filesStp->gfxPtrsFp, filesStp->gfxChunkOffset, loc_error_jmp_buf);
         fseek(filesStp->gfxDataFp, offset, SEEK_SET);
 
-        // TODO : Move to a new function
         pal_size = 4 +(gex_gfxHeader_parseAOB(header).typeSignature & 1 ? 256 : 16) * 2;
         palData = malloc(pal_size);
-        fsmod_fread(palData, 1, pal_size, filesStp->gfxDataFp, loc_error_jmp_buf); // TODO: error handling
+        fsmod_fread(palData, 1, pal_size, filesStp->gfxDataFp, loc_error_jmp_buf); 
         pal = gfx_createPalette(palData);
 
         // preparing filename
