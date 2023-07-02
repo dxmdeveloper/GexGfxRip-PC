@@ -6,3 +6,4 @@ build-*/
 null.d
 vcpkg
 builddir/
+5*
