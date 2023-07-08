@@ -32,20 +32,22 @@ static u32 fsmod_offsetToInfilePtr(uptr fileOffset, uptr startOffset);
     @param mode 0 - check all, 1 - check only ptrsFps, 2 - check only dataFps */
 static void fsmod_files_check_errors_and_eofs(struct fsmod_files * filesStp, int mode);
 
+//! TO BE REMOVED
 /** @brief reads one u32 value from both: tilesPtrsFp and gfxPtrsFp (in that order) to u32pairp. 
-           jumps to error_jmp_buf if cannot read the values */
+           Jumps to error_jmp_buf if cannot read the values */
 inline static void fsmod_readU32_from_both_pFps(struct fsmod_files * filesStp, u32pair u32pairp[static 1]);
 
-/** @brief reads infile ptr (aka gexptr) from file and converts it to file offset
-           jumps to error_jmp_buf if cannot read the values */
-inline static u32 fsmod_read_infile_ptr(FILE * fp, u32 chunkOffset, jmp_buf error_jmp_buf);
+/** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
+           Jumps to error_jmp_buf if cannot read the values */
+inline static u32 fsmod_read_infile_ptr(FILE * fp, u32 chunkOffset, jmp_buf *error_jmp_buf);
 
-/** @brief fread wrapper with error handling
-           jumps to error_jmp_buf if cannot read the values */
-inline static size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf error_jmp_buf);
+/** @brief fread wrapper with error handling.
+           Jumps to error_jmp_buf if cannot read the values */
+inline static size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_jmp_buf);
 
+//! TO BE REMOVED
 /** @brief reads one gexptr from both: tilesPtrsFp and gfxPtrsFp (in that order) & converts it to u32 offset. 
-           jumps to error_jmp_buf if cannot read the values */
+           Jumps to error_jmp_buf if cannot read the values */
 inline static u32pair fsmod_read_infile_ptr_from_both(struct fsmod_files * filesStp);
 
 //TODO: consider additional argument for filename
@@ -78,7 +80,7 @@ void fsmod_scan4Gfx(char filename[], scan_foundCallback_t foundCallback){
     char * eFilename = malloc(strlen(filename)+201);
 
     // File reading error jump location
-    if((read_errno = setjmp(filesSt.error_jmp_buf))){
+    if((read_errno = setjmp(*filesSt.error_jmp_buf))){
         fprintf(stderr, "Error occured while reading file %s. The file may be corrupted\n fsmod_file_read_errno: %i\n", filename, read_errno);
         if(eFilename) free(eFilename);
         fsmod_files_close(&filesSt);
@@ -204,27 +206,48 @@ void fsmod_files_close(struct fsmod_files * filesStp){
 }
 
 
+int fsmod_follow_pattern(FILE* fp, u32 chunkOffset, const char pattern[], jmp_buf * error_jmp_buf){
+    u32 u32val = 0;
+    int intVal = 0;
+
+    for(const char* pcur = pattern; *pcur; pcur++){
+        switch(*pcur){
+            case 'g':{
+                u32val = fsmod_read_infile_ptr(fp, chunkOffset, error_jmp_buf);
+                if(!u32val) return EXIT_FAILURE;
+                fseek(fp, SEEK_SET, u32val);
+            } break;
+            case '+': pcur+=1; // no break
+            case '-': {
+                intVal = atoi(pcur);
+                fseek(fp, SEEK_CUR, intVal);
+            } break;
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
 // ------------------- Static functions definitions: -------------------
 
 inline static void fsmod_readU32_from_both_pFps(struct fsmod_files * filesStp, u32pair u32pairp[static 1]){                        
     if(!fread_LE_U32(&u32pairp->first, 1, filesStp->tilesPtrsFp)) 
-        longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);        
+        longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);        
     if(!fread_LE_U32(&u32pairp->second, 1, filesStp->gfxPtrsFp))
-        longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);
+        longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);
 }
 
-inline static u32 fsmod_read_infile_ptr(FILE * fp, u32 chunkOffset, jmp_buf error_jmp_buf){
+inline static u32 fsmod_read_infile_ptr(FILE * fp, u32 chunkOffset, jmp_buf *error_jmp_buf){
     u32 val = 0;
     if(!fread_LE_U32(&val, 1, fp))
-        longjmp(error_jmp_buf, FSMOD_READ_ERROR_FREAD);
+        longjmp(*error_jmp_buf, FSMOD_READ_ERROR_FREAD);
 
     return (u32)fsmod_infilePtrToOffset(val, chunkOffset);
 }
 
-inline static size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf error_jmp_buf){
+inline static size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_jmp_buf){
     size_t retval = fread(dest, size, n, fp);
     if(retval < n)
-        longjmp(error_jmp_buf, FSMOD_READ_ERROR_FREAD);
+        longjmp(*error_jmp_buf, FSMOD_READ_ERROR_FREAD);
     return retval;
 }
 
@@ -241,15 +264,15 @@ static void fsmod_files_check_errors_and_eofs(struct fsmod_files * filesStp, int
         case 0:
         case 1:
             if(feof(filesStp->tilesPtrsFp) || feof(filesStp->gfxPtrsFp))
-                longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_UNEXPECTED_EOF);
+                longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_UNEXPECTED_EOF);
             if(ferror(filesStp->tilesPtrsFp) || ferror(filesStp->gfxPtrsFp)) 
-                longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_FERROR);
+                longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_FERROR);
             if(mode) return;
         case 2:
             if(feof(filesStp->tilesDataFp) || feof(filesStp->gfxDataFp))
-                longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_UNEXPECTED_EOF);
+                longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_UNEXPECTED_EOF);
             if(ferror(filesStp->tilesDataFp) || ferror(filesStp->gfxDataFp)) 
-                longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_FERROR);
+                longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_FERROR);
             break;
     }
 }
@@ -286,7 +309,7 @@ static u32pair fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32pai
         fseek(filesStp->gfxPtrsFp, (filesStp->gfxChunkEp + 0x28), SEEK_SET);
 
         if(!fread_LE_U32(&u32vals.first, 1, filesStp->gfxPtrsFp)) 
-            longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);
+            longjmp(*filesStp->error_jmp_buf, FSMOD_READ_ERROR_FREAD);
 
         fseek(filesStp->gfxPtrsFp, fsmod_infilePtrToOffset(u32vals.first, filesStp->gfxChunkOffset), SEEK_SET);
     }
@@ -314,33 +337,29 @@ static u32pair fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32pai
     return retVals;
 }
 
-inline static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * filesStp, scan_foundCallback_t cb){
+static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * filesStp, scan_foundCallback_t cb){
     void * bitmap = NULL;
     void * header = NULL;
-    void * palData = NULL;
     struct gfx_palette pal = {0};
-    size_t bitmap_size = 0, required_size = 0, pal_size = 0;
+    size_t bitmap_size = 0, required_size = 0;
     u16 tileWidthAndHeight[2] = {0};
     u32 offset = 0;
-    char suggestedName[81] = "";
+    char suggestedName[81] = ""; //temp
 
     jmp_buf loc_error_jmp_buf; int errno = 0;
 
+    // error catch jump 
     if((errno = setjmp(loc_error_jmp_buf))){
-        if(palData) free(palData);
         if(header) free(header);
         if(bitmap) free(bitmap);
-        longjmp(filesStp->error_jmp_buf, errno);
+        longjmp(*filesStp->error_jmp_buf, errno);
     }
-
-    //fseek(filesStp->tilesDataFp, u32values.first, SEEK_SET);
-    //fseek(filesStp->gfxDataFp, u32values.second, SEEK_SET);
 
     fread_LE_U16(tileWidthAndHeight, 2, filesStp->tilesDataFp); // TODO: error handling
     bitmap_size = tileWidthAndHeight[0] * 2 * tileWidthAndHeight[1];
 
     if(!gex_gfxHeadersFToAOB(filesStp->gfxDataFp, &header)) /* <- mem allocated */{
-        fprintf(stderr,"%lu\n", ftell(filesStp->gfxDataFp));
+        fprintf(stderr,"bad header at: %lu\n", ftell(filesStp->gfxDataFp));
         if(header) free(header); header = NULL;
         //longjmp(filesStp->error_jmp_buf, FSMOD_READ_ERROR_WRONG_VALUE);
         return; // skip
@@ -353,16 +372,12 @@ inline static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * fil
     if(/*bitmap_size >= required_size &&*/ required_size){
         // bitmap data read
         if(!(bitmap = malloc(required_size))) exit(0xbeef);
-        fsmod_fread(bitmap, 1, required_size, filesStp->tilesDataFp, loc_error_jmp_buf); 
+        fsmod_fread(bitmap, 1, required_size, filesStp->tilesDataFp, &loc_error_jmp_buf); 
 
         // palette read
-        offset = fsmod_read_infile_ptr(filesStp->gfxPtrsFp, filesStp->gfxChunkOffset, loc_error_jmp_buf);
+        offset = fsmod_read_infile_ptr(filesStp->gfxPtrsFp, filesStp->gfxChunkOffset, &loc_error_jmp_buf);
         fseek(filesStp->gfxDataFp, offset, SEEK_SET);
-
-        pal_size = 4 +(gex_gfxHeader_parseAOB(header).typeSignature & 1 ? 256 : 16) * 2;
-        palData = malloc(pal_size);
-        fsmod_fread(palData, 1, pal_size, filesStp->gfxDataFp, loc_error_jmp_buf); 
-        pal = gfx_createPalette(palData);
+        gfx_palette_parsef(filesStp->gfxDataFp, &pal);
 
         // preparing filename
         sprintf(suggestedName, "%u", offset); // temp?
@@ -371,7 +386,6 @@ inline static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * fil
         cb(bitmap, header, &pal, suggestedName);
     }
 
-    if(palData) free(palData);
     if(header) free(header);
     if(bitmap) free(bitmap);
 }

@@ -99,6 +99,25 @@ struct gex_gfxChunk gex_gfxChunk_parseAOB(const uint8_t aob[8]){
     return chunkSt;
 }
 
+struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * dest){
+    void * palData = NULL;
+    size_t pal_size = 0;
+    u32 type = 0;
+
+    if(fread_LE_U32(&type, 1, ifstream)) return NULL;
+    pal_size = 4 + (type & 1 ? 256 : 16) * 2;
+    palData = malloc(pal_size);
+    fseek(ifstream, SEEK_CUR, -4);
+    if(fread(palData, 1, pal_size, ifstream) < pal_size){
+        free(palData); return NULL;
+    }
+
+    *dest = gfx_createPalette(palData);
+    free(palData);
+    return dest;
+
+}
+
 size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 width = 0;
     u32 height = 0;

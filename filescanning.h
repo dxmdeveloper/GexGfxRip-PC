@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "gfx.h"
+#include "essentials/Stack.h"
 
 #define FILE_MIN_SIZE 128
 typedef void (*scan_foundCallback_t)(void * bitmap, void * headerAndOpMap, const struct gfx_palette*, const char filename[]);
@@ -60,7 +61,7 @@ struct fsmod_files {
     uint32_t gfxChunkEp;
     uint32_t tilesChunkEp;
 
-    jmp_buf error_jmp_buf;
+    jmp_buf* error_jmp_buf;
 };
 
 /** @brief initializes fsmod_files structure. Opens one file in read mode multiple times and sets it at start position.
@@ -69,5 +70,18 @@ struct fsmod_files {
 // filesStp->error_jmp_buf MUST be set before or after initialization
 int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]);
 void fsmod_files_close(struct fsmod_files * filesStp);
+
+//TODO: DOCS
+/**
+ * @brief Do not with user input
+ * 
+ * @param pattern 
+ * @return int EXIT_SUCCESS or EXIT_FAILURE.
+ */
+int fsmod_follow_pattern(FILE* fp, uint32_t chunkOffset, const char pattern[], jmp_buf * error_jmp_buf);
+
+// TODO: TO IMPLEMENT
+// ! TO IMPLEMENT
+int fsmod_follow_pattern_recursively(FILE* fp, uint32_t chunkOffset, const char pattern[], Stack32 * callStack, jmp_buf * error_jmp_buf);
 
 #endif

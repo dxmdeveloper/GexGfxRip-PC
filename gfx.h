@@ -79,6 +79,11 @@ struct gex_gfxHeader gex_gfxHeader_parseAOB(const uint8_t aob[20]);
 struct gex_gfxChunk gex_gfxChunk_parseAOB(const uint8_t aob[8]);
 
 
+/** @brief parses gfx_palette from input file stream. Calls gfx_createPalette. Shifts stream cursor.
+    @return pointer to dest or null if failed to read stream or parse */
+struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * dest);
+
+
 
 /** @brief creates palette from gex palette format.
  * gex palette format starts with (LE) 00 XX FF FF for 16 colors or 01 XX FF FF for 256 colors
