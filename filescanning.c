@@ -61,6 +61,10 @@ static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * filesStp, 
             last will be ~0 there's no tile sets or error occured during file read. ferror & feof should be called */
 static u32pair fsmod_head_to_tiles_records(struct fsmod_files * filesStp, u32pair nextOffsets);
 
+/// @brief finds end of scope by characters like } or ]
+/// @param str array of character starting with opening character
+const char * strFindScopeEnd(const char str[], char closeChar);
+
 // part of fsmod_init
 static inline int _fsmod_files_init_open_and_set(const char filename[], FILE * mainFp,
  size_t fileSize, FILE ** ptrsFp, FILE ** dataFp, u32 * chunkSizep, u32 * chunkOffsetp, u32 * chunkEpp);
@@ -215,19 +219,114 @@ int fsmod_follow_pattern(FILE* fp, u32 chunkOffset, const char pattern[], jmp_bu
             case 'g':{
                 u32val = fsmod_read_infile_ptr(fp, chunkOffset, error_jmp_buf);
                 if(!u32val) return EXIT_FAILURE;
-                fseek(fp, SEEK_SET, u32val);
+                fseek(fp, u32val, SEEK_SET);
             } break;
             case '+': pcur+=1; // no break
             case '-': {
                 intVal = atoi(pcur);
-                fseek(fp, SEEK_CUR, intVal);
+                fseek(fp, intVal, SEEK_CUR);
             } break;
         }
     }
     return EXIT_SUCCESS;
 }
 
+// TODO: TESTS AND FIXES
+size_t fsmod_follow_pattern_recursively(FILE* fp, u32 chunkOffset, const char pattern[], void * pass2cb,
+                                     void cb(FILE* fp, u32 offset, void * clientp), jmp_buf * error_jmp_buf){
+    Stack32 offsetStack = {0};
+    Stack32 loopStack = {0};
+    u16 recurCnt[128] = {0};
+    size_t cbCalls = 0;
+
+    Stack32_init(&offsetStack, 128);
+    Stack32_init(&loopStack, 256);
+    
+    for(const char* pcur = pattern; *pcur; pcur++){
+        switch(*pcur){
+            case 'g':{
+                //GOTO GEXPTR
+                u32 offset = fsmod_read_infile_ptr(fp, chunkOffset, error_jmp_buf);
+                if(offset)
+                    fseek(fp, offset, SEEK_SET);
+            } break;
+            case '+': pcur+=1; // no break
+            case '-': {
+                int offset = atoi(pcur);
+                fseek(fp, offset, SEEK_CUR);
+            } break;
+            case '[':{
+                // LOOP START
+                Stack32_push(&loopStack, (u32)(pattern - pcur)); // save pcur position
+                Stack32_push(&loopStack, 0); // new iteration
+            } break;
+            case ';':{
+                // LOOP BODY END
+                u32 popedIteration = Stack32_pop(&loopStack);
+                u32 popedPcurPos = Stack32_pop(&loopStack);
+                if(pcur[1] == ']'){
+                    u32 offset = fsmod_read_infile_ptr(fp, chunkOffset, error_jmp_buf);
+                    if(!offset) break; //! TO DOCS: after null terminated array. the null value is already read.
+                    else fseek(fp, -4, SEEK_CUR);
+                }
+                else {
+                    int repeats = atoi(pcur+1);
+                    if(popedIteration >= repeats) break;
+                }
+                // if the loop isn't over
+                pcur = pattern + popedPcurPos;
+                Stack32_push(&loopStack, popedPcurPos);
+                Stack32_push(&loopStack, popedIteration+1);
+            } break;
+            case 'G':{
+                pcur+=1; // skip the '{'
+                u32 offset = fsmod_read_infile_ptr(fp, chunkOffset, error_jmp_buf);
+                if(!offset){
+                    pcur = strFindScopeEnd(pcur, '}');
+                    break;
+                }
+                Stack32_push(&offsetStack, (u32)ftell(fp));
+                fseek(fp, offset, SEEK_SET);
+            } break;
+            case '}':{
+                // G scope end
+                u32 offset = Stack32_pop(&offsetStack);
+                fseek(fp, offset+4, SEEK_SET);
+            } break;
+            case 'c':{
+                // call callback
+                cb(fp, chunkOffset, pass2cb);
+                cbCalls++;
+            } break;
+            case 'p':{
+                Stack32_push(&loopStack, (u32)ftell(fp));
+            } break;
+            case 'b':{
+                u32 offset = Stack32_pop(&loopStack);
+                if(offset){
+                    fseek(fp, offset, SEEK_SET);
+                }
+            } break;
+        }
+    }
+
+    Stack32_close(&offsetStack);
+    Stack32_close(&loopStack);
+    return cbCalls;
+
+}
+
 // ------------------- Static functions definitions: -------------------
+
+const char * strFindScopeEnd(const char str[], char closeChar){
+    char openChar = *str++;
+    for(u32 openChCnt = 0; openChCnt || *str != closeChar; str++){
+        if(*str == '\0') return NULL;
+        else if(*str == openChar) openChCnt++;
+        else if(*str == closeChar) openChCnt--;
+    }
+    return str;
+}
 
 inline static void fsmod_readU32_from_both_pFps(struct fsmod_files * filesStp, u32pair u32pairp[static 1]){                        
     if(!fread_LE_U32(&u32pairp->first, 1, filesStp->tilesPtrsFp)) 

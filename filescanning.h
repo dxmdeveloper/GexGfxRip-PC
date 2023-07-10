@@ -48,6 +48,13 @@ enum fsmod_file_read_errno_enum {
     FSMOD_READ_ERROR_UNEXPECTED_EOF,
     FSMOD_READ_ERROR_WRONG_VALUE,
 };
+//! -----------------------
+// ?
+struct fsmod_file_chunk {
+    FILE * dataFp;
+    FILE * ptrsFp;
+}; //?
+//! -----------------------
 
 struct fsmod_files {
     FILE * tilesDataFp;
@@ -80,8 +87,15 @@ void fsmod_files_close(struct fsmod_files * filesStp);
  */
 int fsmod_follow_pattern(FILE* fp, uint32_t chunkOffset, const char pattern[], jmp_buf * error_jmp_buf);
 
-// TODO: TO IMPLEMENT
-// ! TO IMPLEMENT
-int fsmod_follow_pattern_recursively(FILE* fp, uint32_t chunkOffset, const char pattern[], Stack32 * callStack, jmp_buf * error_jmp_buf);
+// [g;5]
+// g - goto gexptr
+// p - push offset
+// b - back (pop offset)
+// c - call callback
+// B - b+4
+// G{} - pg{}B
+size_t fsmod_follow_pattern_recursively(FILE* fp, uint32_t chunkOffset, const char pattern[], void * pass2cb,
+                                     void cb(FILE* fp, uint32_t offset, void * clientp), jmp_buf * error_jmp_buf);
 
 #endif
+
