@@ -1,6 +1,6 @@
 #include "write_png.h"
 #include <stdlib.h>
-#include "basicdefs.h"
+#include "../helpers/basicdefs.h"
 
 u32 exitCode = 0;
 

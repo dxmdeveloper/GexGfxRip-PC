@@ -1,29 +1,30 @@
 #include <stdio.h>
 #include <png.h>
 #include <stdlib.h>
-#include "basicdefs.h"
-#include "filescanning.h"
-#include "write_png.h"
-#include "gfx.h"
+#include "helpers/basicdefs.h"
+#include "filescanning/filescanning.h"
+#include "graphics/write_png.h"
+#include "graphics/gfx.h"
 
 
 // STATIC DECLARATIONS:
-struct gfx_palette createDefaultPalette(bool _256colors, bool transparency);
-void onfoundClbFunc(const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char filename[]);
+void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char filename[]);
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
 
-// INMUTABLE (only one assigment)
-// TODO: REMOVE THIS
-struct gfx_palette const_grayscalePal256;
-struct gfx_palette const_grayscalePal16;
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
-    
-    const_grayscalePal256 = createDefaultPalette(true, true);
-    const_grayscalePal16 = createDefaultPalette(false, true);
+    struct fsmod_files fsmodFilesSt = {0};
+    jmp_buf errbuf;
+    jmp_buf * errbufp; int errno = 0;
+
+    if((errno = setjmp(errbuf))){
+        fprintf(stderr, "error while scanning file %i", errno);
+        fsmod_files_close(&fsmodFilesSt);
+        return -1;
+    }
 
     // if no additional program arguments or
     if(argc == 1 || strcmp(argv[argc-1], "*") == 0){
@@ -37,10 +38,15 @@ int main(int argc, char *argv[]) {
             fclose(testFile);
 
             // Scan found file
-            fsmod_scan4Gfx(ifilename, onfoundClbFunc);
+            fsmod_files_init(&fsmodFilesSt, ifilename);
+            fsmod_tiles_scan(&fsmodFilesSt, NULL, onfoundClbFunc);
+            fsmod_files_close(&fsmodFilesSt);
         }
     } else {
-        fsmod_scan4Gfx(argv[argc-1], onfoundClbFunc);
+        if(fsmod_files_init(&fsmodFilesSt, argv[argc-1]) >= 0){
+            fsmod_tiles_scan(&fsmodFilesSt, NULL, onfoundClbFunc);
+            fsmod_files_close(&fsmodFilesSt);
+        }
     }
     return 0;     
 }
@@ -50,19 +56,23 @@ int main(int argc, char *argv[]) {
 
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
-void onfoundClbFunc(const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char ofilename[]){
+void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char ofilename[]){
     png_byte ** image = NULL;
     FILE * filep = NULL;
     struct gex_gfxHeader gfxHeader = {0};
     u32 realWidth = 0, realHeight = 0;
+
+    // infinite loop protection
+    static int counter = 0;
+    counter++;
+    if(counter > 8000){ dbg_errlog("FILES LIMIT REACHED\n"); exit(123);}
 
     gfxHeader = gex_gfxHeader_parseAOB(headerAndOpMap);
 
     // Exception handling 
     if(palette == NULL) {
         fprintf(stderr, "Err: invalid gex color palette\n");
-        if(gfxHeader.typeSignature & 1) palette = &const_grayscalePal256;
-        else palette = &const_grayscalePal16;
+        return;
     }
     
     if(ofilename == NULL){
@@ -99,20 +109,4 @@ void onfoundClbFunc(const void *bitmap, const void *headerAndOpMap, const struct
     // Cleaning
     fclose(filep);
     free(image);
-}
-
-// TODO: REMOVE THIS
-struct gfx_palette createDefaultPalette(bool _256colors, bool transparency){
-    struct gfx_palette pal = {0};
-    if(transparency){
-        pal.tRNS_count = 1;
-        pal.tRNS_array[0] = 0;
-    }
-    pal.colorsCount = (_256colors ? 256 : 16);
-    for(u16 i = 0; i < 256; i+= (_256colors ? 1 : 16)){
-        pal.palette[i / (_256colors ? 1 : 16)].blue = i;
-        pal.palette[i / (_256colors ? 1 : 16)].green = i;
-        pal.palette[i / (_256colors ? 1 : 16)].red = i;
-    }
-    return pal;
 }

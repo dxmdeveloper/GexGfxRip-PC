@@ -1,7 +1,7 @@
 #include "gfx.h"
 #include <png.h>
-#include "basicdefs.h"
-#include "binary_parse.h"
+#include "../helpers/basicdefs.h"
+#include "../helpers/binary_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -104,10 +104,10 @@ struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * de
     size_t pal_size = 0;
     u32 type = 0;
 
-    if(fread_LE_U32(&type, 1, ifstream)) return NULL;
+    if(!fread_LE_U32(&type, 1, ifstream)) return NULL;
     pal_size = 4 + (type & 1 ? 256 : 16) * 2;
     palData = malloc(pal_size);
-    fseek(ifstream, SEEK_CUR, -4);
+    fseek(ifstream, -4, SEEK_CUR);
     if(fread(palData, 1, pal_size, ifstream) < pal_size){
         free(palData); return NULL;
     }
@@ -298,6 +298,9 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
     u32 width = 0;
     u32 height = 0;
     struct gex_gfxChunk chunk = {0};
+
+    if(!chunksHeadersAndOpMap || !bitmapIDat) return NULL;
+    bitmapBasePtr = bitmapIDat;
 
     if(minWidth > IMG_MAX_WIDTH || minHeight > IMG_MAX_HEIGHT){
         fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawSprite)\n");

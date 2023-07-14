@@ -3,7 +3,8 @@
 
 void Stack32_init(Stack32 *s, size_t size){
     if(!(s->stack = malloc(4 * size)))
-    fprintf(stderr, "failed to initialize Stack32\n");
+        fprintf(stderr, "failed to initialize Stack32\n");
+    s->size = size;
 }
 
 void Stack32_close(Stack32 *s){

@@ -8,7 +8,6 @@ typedef struct Stack32_struct {
 
     uint32_t * stack;
 
-    int additionalInfo_level;
 } Stack32;
 
 void Stack32_init(Stack32 *stackp, size_t size);

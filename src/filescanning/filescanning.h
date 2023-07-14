@@ -2,18 +2,10 @@
 #define _FILESCANNING_H_ 1
 #include <stdlib.h>
 #include <stdint.h>
-#include "gfx.h"
-#include "essentials/Stack.h"
+#include "../graphics/gfx.h"
+#include "../essentials/Stack.h"
 
 #define FILE_MIN_SIZE 128
-typedef void (*scan_foundCallback_t)(void * bitmap, void * headerAndOpMap, const struct gfx_palette*, const char filename[]);
-
-/// @brief scans file for gex graphics files
-/// @param filename path to file to read
-/// @param foundCallback callback function which is executed on every found graphic. 
-/// takes 2 arguments: pointer to found graphic and pointer to assigned color palette (may be null ptr).
-void fsmod_scan4Gfx(char filename[], scan_foundCallback_t);
-
 
 /// @brief function scanning memory for u32 value
 /// @param endPtr end of the scanning range. The offset is excluded from the scan.
@@ -48,54 +40,38 @@ enum fsmod_file_read_errno_enum {
     FSMOD_READ_ERROR_UNEXPECTED_EOF,
     FSMOD_READ_ERROR_WRONG_VALUE,
 };
-//! -----------------------
-// ?
-struct fsmod_file_chunk {
+typedef struct fsmod_file_chunk_structure {
     FILE * dataFp;
     FILE * ptrsFp;
-}; //?
-//! -----------------------
+    size_t size;
+    uint32_t offset;
+    uint32_t ep;
+} fsmod_file_chunk; 
 
 struct fsmod_files {
-    FILE * tilesDataFp;
-    FILE * tilesPtrsFp;
-    FILE * gfxDataFp;
-    FILE * gfxPtrsFp;
-    uint32_t tilesChunkSize;
-    uint32_t gfxChunkSize;
-    uint32_t tilesChunkOffset;
-    uint32_t gfxChunkOffset;
-    uint32_t gfxChunkEp;
-    uint32_t tilesChunkEp;
+    fsmod_file_chunk tilesChunk;
+    fsmod_file_chunk mainChunk;
 
     jmp_buf* error_jmp_buf;
 };
 
+void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
+                      void cb(void * clientp, const void *bitmap, const void *headerAndOpMap,
+                              const struct gfx_palette *palette, const char suggestedName[]));
+
+/** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
+           Jumps to error_jmp_buf if cannot read the values */
+uint32_t fsmod_read_infile_ptr(FILE * fp, uint32_t chunkOffset, jmp_buf *error_jmp_buf);
+
+/** @brief fread wrapper with error handling.
+           Jumps to error_jmp_buf if cannot read the values */
+size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_jmp_buf);
+
 /** @brief initializes fsmod_files structure. Opens one file in read mode multiple times and sets it at start position.
     @return enum fsmod_level_type with bit flags */
-
 // filesStp->error_jmp_buf MUST be set before or after initialization
 int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]);
 void fsmod_files_close(struct fsmod_files * filesStp);
 
-//TODO: DOCS
-/**
- * @brief Do not with user input
- * 
- * @param pattern 
- * @return int EXIT_SUCCESS or EXIT_FAILURE.
- */
-int fsmod_follow_pattern(FILE* fp, uint32_t chunkOffset, const char pattern[], jmp_buf * error_jmp_buf);
-
-// [g;5]
-// g - goto gexptr
-// p - push offset
-// b - back (pop offset)
-// c - call callback
-// B - b+4
-// G{} - pg{}B
-size_t fsmod_follow_pattern_recursively(FILE* fp, uint32_t chunkOffset, const char pattern[], void * pass2cb,
-                                     void cb(FILE* fp, uint32_t offset, void * clientp), jmp_buf * error_jmp_buf);
 
 #endif
-
