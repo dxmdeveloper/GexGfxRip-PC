@@ -25,13 +25,14 @@ int fsmod_follow_pattern(fsmod_file_chunk fileChunk[1], const char pattern[], jm
 // p - push offset
 // b - back (pop offset)
 // c - call callback
+// C - call callback until it returns non-zero value
 // d - get address from gexptr using ptrsFp and goto with dataFp
 // D - the same as d but can break ;] loop
 // B - b+4
 // G{} - pg{}B
 // ;z]
 size_t fsmod_follow_pattern_recur(fsmod_file_chunk fChunk[1], const char pattern[], void * pass2cb,
-                                  void cb(fsmod_file_chunk fChunk[1], gexdev_u32vec * iterVecp, void * clientp), jmp_buf * error_jmp_buf);
+                                  int cb(fsmod_file_chunk fChunk[1], gexdev_u32vec * iterVecp, void * clientp), jmp_buf * error_jmp_buf);
 
 /// @brief finds end of scope by characters like } or ]
 /// @param str array of character starting with opening character

@@ -29,7 +29,7 @@ int fsmod_follow_pattern(fsmod_file_chunk * fch, const char pattern[], jmp_buf *
                 if(!u32val) return EXIT_FAILURE;
                 fseek(fch->ptrsFp, u32val, SEEK_SET);
             } break;
-            case '+': pcur+=1; // no break
+            case '+':
             case '-': {
                 intVal = atoi(pcur);
                 fseek(fch->ptrsFp, intVal, SEEK_CUR);
@@ -47,7 +47,7 @@ int fsmod_follow_pattern(fsmod_file_chunk * fch, const char pattern[], jmp_buf *
 
 // TODO: TESTS AND FIXES
 size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], void * pass2cb,
-                                     void cb(fsmod_file_chunk * fch, gexdev_u32vec * iterVecp, void * clientp), jmp_buf * error_jmp_buf){
+                                     int cb(fsmod_file_chunk * fch, gexdev_u32vec * iterVecp, void * clientp), jmp_buf * error_jmp_buf){
     Stack32 offsetStack = {0};
     Stack32 loopStack = {0};
     gexdev_u32vec iterVec = {0};
@@ -70,9 +70,9 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 if(offset)
                     fseek(fch->ptrsFp, offset, SEEK_SET);
             } break;
-            case '+': pcur+=1; // no break
+            case '+':
             case '-': {
-                int offset = atoi(pcur);
+                long offset = strtol(pcur, NULL, 0);
                 fseek(fch->ptrsFp, offset, SEEK_CUR);
             } break;
             case '[':{
@@ -122,6 +122,9 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 cb(fch, &iterVec, pass2cb);
                 cbCalls++;
             } break;
+            case 'C':{
+                while(cb(fch, &iterVec, pass2cb)) cbCalls++;
+            }break;
             case 'p':{
                 Stack32_push(&loopStack, (u32)ftell(fch->ptrsFp));
             } break;
