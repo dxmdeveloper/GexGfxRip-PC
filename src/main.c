@@ -6,6 +6,14 @@
 #include "graphics/write_png.h"
 #include "graphics/gfx.h"
 
+// mkdir / stat
+#ifdef _WIN32
+    #include <direct.h>
+    #define MAKEDIR(x) _mkdir(x)
+#else //POSIX
+    #include <sys/stat.h>
+    #define MAKEDIR(x) mkdir(x, 0755)
+#endif
 
 // STATIC DECLARATIONS:
 void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char filename[]);
@@ -13,12 +21,18 @@ void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
 
+struct application_options {
+    char * savePath;
+};
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
     struct fsmod_files fsmodFilesSt = {0};
+    struct application_options options = {0};
+    char odirname[17];
     jmp_buf errbuf;
     jmp_buf * errbufp; int errno = 0;
+
 
     if((errno = setjmp(errbuf))){
         fprintf(stderr, "error while scanning file %i", errno);
@@ -36,15 +50,23 @@ int main(int argc, char *argv[]) {
             FILE* testFile = fopen(ifilename, "rb");
             if(testFile == NULL) continue;
             fclose(testFile);
-
+            
+            // output directory name
+            sprintf(odirname, "%s-rip/", ifilename);
+            options.savePath = odirname;
             // Scan found file
             fsmod_files_init(&fsmodFilesSt, ifilename);
-            fsmod_tiles_scan(&fsmodFilesSt, NULL, onfoundClbFunc);
+            if(fsmodFilesSt.tilesChunk.ptrsFp && fsmodFilesSt.mainChunk.ptrsFp)
+                fsmod_tiles_scan(&fsmodFilesSt, &options, onfoundClbFunc);
             fsmod_files_close(&fsmodFilesSt);
         }
     } else {
         if(fsmod_files_init(&fsmodFilesSt, argv[argc-1]) >= 0){
-            fsmod_tiles_scan(&fsmodFilesSt, NULL, onfoundClbFunc);
+            // output directory name
+            sprintf(odirname, "%s-rip/", argv[argc-1]);
+            options.savePath = odirname;
+            if(fsmodFilesSt.tilesChunk.ptrsFp && fsmodFilesSt.mainChunk.ptrsFp)
+                fsmod_tiles_scan(&fsmodFilesSt, &options, onfoundClbFunc);
             fsmod_files_close(&fsmodFilesSt);
         }
     }
@@ -58,14 +80,26 @@ int main(int argc, char *argv[]) {
 // TODO: output filename based on program argument
 void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char ofilename[]){
     png_byte ** image = NULL;
+    char filePath[PATH_MAX] = "\0";
     FILE * filep = NULL;
     struct gex_gfxHeader gfxHeader = {0};
     u32 realWidth = 0, realHeight = 0;
+    struct application_options * appoptp = clientp;
 
     // infinite loop protection
     static int counter = 0;
+    static char lastSavePath[PATH_MAX]; //! MOVE TO CLIENTP
+    if(strcmp(lastSavePath, appoptp->savePath)){
+        counter = 0;
+        strncpy(lastSavePath, appoptp->savePath, PATH_MAX - 1);
+    }
     counter++;
-    if(counter > 8000){ dbg_errlog("FILES LIMIT REACHED\n"); exit(123);}
+    if(counter > 20000){ dbg_errlog("FILES LIMIT REACHED\n"); exit(123);}
+    // ----------------------------------------
+
+    if(counter == 1){
+        MAKEDIR(appoptp->savePath); // TODO: add more options for user
+    }
 
     gfxHeader = gex_gfxHeader_parseAOB(headerAndOpMap);
 
@@ -92,8 +126,9 @@ void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMa
     }
     
     // File opening
-    if((filep = fopen(ofilename, "wb")) == NULL){
-        fprintf(stderr, "Err: Cannot open file %s", ofilename);
+    snprintf(filePath, PATH_MAX-1, "%s%s", appoptp->savePath, ofilename);
+    if((filep = fopen(filePath, "wb")) == NULL){
+        fprintf(stderr, "Err: Cannot open file %s\n", filePath);
         free(image);
         return;
     }

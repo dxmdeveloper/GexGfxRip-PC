@@ -5,7 +5,7 @@
 typedef struct _gexdev_tools_u32vector_structure {
     size_t size;
     size_t capacity;
-    uint32_t *container;
+    uint32_t *v;
 } gexdev_u32vec;
 
 ///@return EXIT_SUCCESS or EXIT_FAILURE
