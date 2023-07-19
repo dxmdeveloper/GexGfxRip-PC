@@ -8,6 +8,7 @@
 #include "../helpers/basicdefs.h"
 #include "../graphics/gfx.h"
 #include "../helpers/binary_parse.h"
+#include "../essentials/ptr_map.h"
 
 /// NOTICE: Setting a file position beyond end of the file is UB, but most platforms handle it lol.
 
@@ -18,7 +19,7 @@ struct tile_scan_cb_pack {
     struct fsmod_files * filesStp;
     void * pass2cb;
     void (*dest_cb)(void*, const void*, const void*, const struct gfx_palette*, const char[]);
-    void ** bmp_headers_binds_map;
+    gexdev_ptr_map * bmp_headers_binds_map;
     const gexdev_u32vec * tileBmpsOffsetsVecp;
     
     size_t cb_iteration; //?
@@ -41,17 +42,16 @@ static void fsmod_files_check_errors_and_eofs(struct fsmod_files filesStp[static
   * @param clientp struct tile_scan_cb_pack */
 static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk fChunkp[static 1], gexdev_u32vec * iterVec, void * clientp);
 
-/////** @brief reads tile header and bitmap into arrays, creates palette, calls callback 
-////   @param filesStp file pointers must be set at the correct positions (tile graphic entries) */
-////static void fsmod_prep_tile_gfx_data_and_exec_cb(struct fsmod_files * filesStp, void * pass2cb, const char suggestedName[],
-////                                                void cb(void*, const void*, const void*, const struct gfx_palette*, const char[]));
-
 /** @brief made to be used with fsmod_follow_pattern_recur.
     @param clientp gexdev_u32vec pointer */
 static int fsmod_cb_read_offset_to_vec(fsmod_file_chunk * chunkp, gexdev_u32vec *  ignored, void * clientp);
 
+/** @brief made as callback for gexdev_ptr_map to shrink size of tile header pointers table */
+static u32 fsmod_cb_tile_header_binds_compute_index(const void* key);
+
 // part of fsmod_init
 static inline int _fsmod_files_init_open_and_set(const char filename[], FILE * generalFp, size_t fileSize, fsmod_file_chunk fchunk[1]);
+
 
 
 // ___________________________________________________ FUNCTION DEFINITIONS ___________________________________________________
@@ -63,40 +63,38 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
                               const struct gfx_palette *palette, const char suggestedName[]))
 {
     struct tile_scan_cb_pack cbPack = {filesStp, pass2cb, cb};
+    gexdev_ptr_map bmp_headers_binds_map = {0};
     gexdev_u32vec tileBmpsOffsetsVec = {0};
+    gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->mainChunk.size - 1, fsmod_cb_tile_header_binds_compute_index);
     gexdev_u32vec_init_capcity(&tileBmpsOffsetsVec, 512);
+
+    if(!bmp_headers_binds_map.mem_regions) exit(0xbeef);
+    if(!tileBmpsOffsetsVec.v) exit(0xbeef);
+
+    cbPack.bmp_headers_binds_map = &bmp_headers_binds_map;
+    cbPack.tileBmpsOffsetsVecp = &tileBmpsOffsetsVec;
 
     // ------------------- error handling ---------------
     jmp_buf errbuf; jmp_buf * errbufp = &errbuf; int errno = 0;
     jmp_buf * prev_errbufp = filesStp->error_jmp_buf;
     if((errno = setjmp(errbuf))){
         gexdev_u32vec_close(&tileBmpsOffsetsVec);
-        if(cbPack.bmp_headers_binds_map){
-            // TODO: CREATE DATA STRUCTURE FOR DICTIONARY / HASH MAP
-            for(size_t i = 0; i < filesStp->mainChunk.size / 28; i++)
-                if(cbPack.bmp_headers_binds_map[i]) free(cbPack.bmp_headers_binds_map[i]);
-            free(cbPack.bmp_headers_binds_map);
-        } 
+        gexdev_ptr_map_close_all(&bmp_headers_binds_map);
         filesStp->error_jmp_buf = prev_errbufp;
         if(prev_errbufp) longjmp(*prev_errbufp, errno);
     }
     filesStp->error_jmp_buf = errbufp;
     // ----------------------------------------------------
 
-    cbPack.bmp_headers_binds_map = calloc(filesStp->mainChunk.size / 28 + 1, sizeof(void*));
-    cbPack.tileBmpsOffsetsVecp = &tileBmpsOffsetsVec;
 
-    fsmod_follow_pattern_recur(&filesStp->tilesChunk, "e[G{C};]", &tileBmpsOffsetsVec, fsmod_cb_read_offset_to_vec, errbufp);
+    fsmod_follow_pattern_recur(&filesStp->tilesChunk, "e[G{C};]", &tileBmpsOffsetsVec,
+                             fsmod_cb_read_offset_to_vec, errbufp);
 
     fsmod_follow_pattern_recur(&filesStp->mainChunk, "e+0x28g[G{C};]", &cbPack,
                              fsmod_prep_tile_gfx_data_and_exec_cb, errbufp);
     
     // cleanup
-    if(cbPack.bmp_headers_binds_map){
-        for(size_t i = 0; i < filesStp->mainChunk.size / 28; i++)
-            if(cbPack.bmp_headers_binds_map[i]) free(cbPack.bmp_headers_binds_map[i]);
-        free(cbPack.bmp_headers_binds_map);
-    }
+    gexdev_ptr_map_close_all(&bmp_headers_binds_map);
     gexdev_u32vec_close(&tileBmpsOffsetsVec);
     filesStp->error_jmp_buf = prev_errbufp;
 }
@@ -217,17 +215,6 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         return 0;
     }
     // - - - -- - - - - -
-    
-    if(packp->lastLvl != iterVecp->v[0]){
-        packp->lastLvl++;
-        /*
-        sprintf(pattern, "e+40g+%ug", (uint)packp->lastLvl);
-        if(fsmod_follow_pattern(mainChp, pattern, errbufp)){
-            dbg_errlog("not found matching tile block in mainChunk");
-            return;
-        }
-        */
-    } // ?
 
     fseek(mainChp->ptrsFp, 4, SEEK_CUR);
 
@@ -256,9 +243,9 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
             fprintf(stderr,"bad header at: %lu (%zu)\n", ftell(mainChp->dataFp), packp->cb_iteration);
             if(header) free(header); header = NULL;
 
-            //if(!packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28]){
+            //if(!packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28])
                 packp->bmp_index++;
-            //}
+
             //longjmp(errbufp, FSMOD_READ_ERROR_WRONG_VALUE);
             return 1; // skip
         } 
@@ -269,8 +256,10 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
 
         if(/*bitmap_size >= required_size &&*/ required_size){
             // bitmap data read if not cached
-            if(packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28])
-                bitmap = packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28];
+            u32 rel_header_offset = headerOffset - mainChp->offset;
+            void * mapped_ptr= gexdev_ptr_map_get(packp->bmp_headers_binds_map, &rel_header_offset);
+            if(mapped_ptr)
+                bitmap = mapped_ptr;
             else {
                 if(packp->tileBmpsOffsetsVecp->size <= packp->bmp_index) return 0; //?
                 fseek(tileChp->dataFp, packp->tileBmpsOffsetsVecp->v[packp->bmp_index] + 4 /* bmp size skip */, SEEK_SET);
@@ -278,7 +267,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
                 
                 if(!(bitmap = malloc(required_size))) exit(0xbeef);
                 fsmod_fread(bitmap, 1, required_size, tileChp->dataFp, errbufp); 
-                packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28] = bitmap;
+                gexdev_ptr_map_set(packp->bmp_headers_binds_map, &rel_header_offset, bitmap);
             }
 
             // palette read
@@ -315,6 +304,11 @@ static void fsmod_files_check_errors_and_eofs(struct fsmod_files * filesStp, int
     }
 }
 */
+
+static u32 fsmod_cb_tile_header_binds_compute_index(const void* key){
+    const u32 * u32keyp = key;
+    return *u32keyp / 32;
+}
 
 static uptr fsmod_infilePtrToOffset(u32 infile_ptr, uptr startOffset){
     if(infile_ptr == 0) return 0;

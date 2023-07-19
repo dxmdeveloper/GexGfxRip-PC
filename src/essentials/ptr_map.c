@@ -7,22 +7,29 @@ gexdev_ptr_map_get_ptr_to_ptr(gexdev_ptr_map * ptrmapp, uint32_t absolute_index,
     void *** regionpp = &ptrmapp->mem_regions[absolute_index / PTR_MAP_REGION_SIZE];
     if(!*regionpp){
         if(!allocRegionIfNotPresent
-        || !(regionpp = calloc(PTR_MAP_REGION_SIZE, sizeof(void *)))) return NULL;
+        || !(*regionpp = calloc(PTR_MAP_REGION_SIZE, sizeof(void *)))) return NULL;
     }
     return &(*regionpp)[absolute_index % PTR_MAP_REGION_SIZE];
 }
 
+static uint32_t gexdev_ptr_map_default_cb(const void * key){
+    return *((uint32_t*) key);
+}
+
 int gexdev_ptr_map_init(gexdev_ptr_map *ptrmapp, uint32_t max_index, uint32_t (*index_compute_cb)(const void *)) {
     ptrmapp->max_index = max_index;
-    ptrmapp->index_compute_cb = index_compute_cb;
+    if(index_compute_cb) ptrmapp->index_compute_cb = index_compute_cb;
+    else ptrmapp->index_compute_cb = gexdev_ptr_map_default_cb;
+    
     ptrmapp->region_count = max_index / PTR_MAP_REGION_SIZE + 1;
-    if(!(ptrmapp->mem_regions = calloc(ptrmapp->region_count, sizeof(void *)))) return EXIT_FAILURE;
+    ptrmapp->mem_regions = calloc(ptrmapp->region_count, sizeof(void*));
+    if(!ptrmapp->mem_regions) return EXIT_FAILURE;
     if(ptrmapp->region_count == 1) {
         if (!(ptrmapp->mem_regions[0] = calloc(PTR_MAP_REGION_SIZE, sizeof(void *)))) {
             gexdev_ptr_map_close_only_map(ptrmapp); return EXIT_FAILURE;
         }
     }
-    if(!gexdev_u32vec_init_capcity(&ptrmapp->inserted_ptr_indexes_vec, 128)) {
+    if(gexdev_u32vec_init_capcity(&ptrmapp->inserted_ptr_indexes_vec, 128)) {
         gexdev_ptr_map_close_only_map(ptrmapp); return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
