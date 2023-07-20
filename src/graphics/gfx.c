@@ -456,7 +456,7 @@ static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pi
     
     if(bpp == 8) img[y][x] = pixVal;
     else {
-        u8 shift = (8 / bpp - 1) - (pix_i % (8 / bpp));
+        u8 shift = bpp * (pix_i % (8/bpp));
         u8 mask = 0xFF >> (8 - bpp);
         img[y][x] = (pixVal >> shift) & mask;
     }
