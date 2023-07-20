@@ -9,11 +9,12 @@ void error_exit(struct png_struct_def * def, const char * msg){
     exit(0x504E47);
 }
 
-void WritePng(FILE * outfile, png_byte** image, const u32 width, const u32 height, const struct gfx_palette *pal){
+void gfx_write_png(FILE * outfile, png_byte** image, const u32 width, const u32 height, const struct gfx_palette *pal){
     png_structp png_ptr = NULL;
     png_infop info_ptr = NULL;
 
-
+    if(pal && pal->colorsCount == 0) pal = NULL;
+    
     //Initialize PNG structures
     png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, error_exit, NULL);
     info_ptr = png_create_info_struct(png_ptr);
@@ -25,17 +26,20 @@ void WritePng(FILE * outfile, png_byte** image, const u32 width, const u32 heigh
         png_ptr,
         info_ptr,
         width, height,
-        8, PNG_COLOR_TYPE_PALETTE,
+        8, (pal ? PNG_COLOR_TYPE_PALETTE : PNG_COLOR_TYPE_RGBA),
         PNG_INTERLACE_NONE,
         PNG_COMPRESSION_TYPE_DEFAULT,
         PNG_FILTER_TYPE_DEFAULT
     );
 
-    //Setting palette 
-    png_set_PLTE(png_ptr,info_ptr, pal->palette, pal->colorsCount);
+    
+    if(pal) {
+        //Setting palette
+        png_set_PLTE(png_ptr,info_ptr, pal->palette, pal->colorsCount);
 
-    //Setting Transparency
-    png_set_tRNS(png_ptr,info_ptr, pal->tRNS_array, pal->tRNS_count, NULL);
+        //Setting Transparency
+        png_set_tRNS(png_ptr,info_ptr, pal->tRNS_array, pal->tRNS_count, NULL);
+    }
 
     //Write Info to file
     png_write_info(png_ptr, info_ptr);

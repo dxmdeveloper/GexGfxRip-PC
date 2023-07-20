@@ -138,8 +138,8 @@ void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMa
     gfxHeader.inf_imgHeight = MAX(gfxHeader.inf_imgHeight, realHeight);
 
     // PNG creation
-    WritePng(filep, image, 
-    gfxHeader.inf_imgWidth, gfxHeader.inf_imgHeight, palette);
+    gfx_write_png(filep, image, 
+    gfxHeader.inf_imgWidth, gfxHeader.inf_imgHeight, (gfxHeader.typeSignature & 2 ? NULL : palette));
 
     // Cleaning
     fclose(filep);

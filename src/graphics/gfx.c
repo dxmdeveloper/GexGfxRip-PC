@@ -7,37 +7,35 @@
 #include <stdbool.h>
 
 
-//* PRIVATE DECLARATIONS:
+//* STATIC DECLARATIONS:
 //
-void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, bool is4bpp);
+static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, u8 bpp);
 void **calloc2D(u32 y, u32 x, u8 sizeOfElement);
 void **malloc2D(u32 y, u32 x, u8 sizeOfElement);
 png_color bgr555toRgb888(u16 bgr555);
 
 
-
-//* PUBLIC DEFINITIONS:
+//* EXTERN DEFINITIONS:
 //
 struct gfx_palette gfx_createPalette(void *gexPalette){
     struct gfx_palette newPalette = {0};
     u16 *colors = (u16*)(gexPalette+4);
     newPalette.tRNS_count = 0;
     
-
     //exception: null pointer
     if(gexPalette == NULL) {
         newPalette.colorsCount = 0;
         return newPalette;
     }
 
-    switch(*((u32*)gexPalette + 0) | 0xff00){
+    switch(aob_read_LE_U32(gexPalette) | 0xff00){
         case 0xffffff00:
             newPalette.colorsCount = 16;
             break;
         case 0xffffff01:
             newPalette.colorsCount = 256;
             break;
-        default:
+        default: //0xffffff02 is an placeholder for 16 bpp bitmap
             return newPalette;
     }
     
@@ -121,12 +119,16 @@ struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * de
 size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 width = 0;
     u32 height = 0;
-    //struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeaders);
+    struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeaders);
+    u8 bpp = gex_gfxHeaderType_getBpp(header.typeSignature);
+
     if(gfx_calcRealWidthAndHeight(&width, &height ,gfxHeaders + 20)){
         //error
         return 0;
     }
-    return (size_t) width * height;
+    if(bpp >= 8) return (size_t)(width * height * (bpp/8) );
+    u32 modulo = width * height % (8/bpp);
+    return (size_t)(width * height / (8/bpp) + modulo); 
 }
 
 // TODO: reimplementation of below functions (done?)
@@ -134,6 +136,7 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
 uint8_t **gfx_drawImgFromRaw(const void *gfxHeaders, const uint8_t bitmapDat[]){
     struct gex_gfxHeader header = {0};
     u32 realWidth = 0, realHeight = 0;
+    u8 bpp = 0;
 
     if(gfxHeaders == NULL || bitmapDat == NULL) return NULL;
 
@@ -147,16 +150,18 @@ uint8_t **gfx_drawImgFromRaw(const void *gfxHeaders, const uint8_t bitmapDat[]){
     header.inf_imgWidth = MAX(header.inf_imgWidth, realWidth);
     header.inf_imgHeight = MAX(header.inf_imgHeight, realHeight);
 
-    switch (header.typeSignature & 0x00000005)
+    switch (header.typeSignature & 7)
     {
         case 5:
-            return gfx_drawSprite(gfxHeaders, bitmapDat, false, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_drawSprite(gfxHeaders, bitmapDat, 8, header.inf_imgWidth, header.inf_imgHeight);
         case 4:
-            return gfx_drawSprite(gfxHeaders, bitmapDat, true, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_drawSprite(gfxHeaders, bitmapDat, 4, header.inf_imgWidth, header.inf_imgHeight);
+        case 2:
+            return (u8**)gfx_drawGexBitmap16bpp(gfxHeaders, bitmapDat, header.inf_imgWidth, header.inf_imgHeight);
         case 1:
-            return gfx_drawGexBitmap(gfxHeaders, bitmapDat, false, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_drawGexBitmap(gfxHeaders, bitmapDat, 8, header.inf_imgWidth, header.inf_imgHeight);
         case 0:
-            return gfx_drawGexBitmap(gfxHeaders, bitmapDat, true, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_drawGexBitmap(gfxHeaders, bitmapDat, 4, header.inf_imgWidth, header.inf_imgHeight);
     }
     return NULL;
 
@@ -232,7 +237,7 @@ uint8_t **gfx_drawImgFromRawf(FILE * gfxHeadersFile, const uint8_t * bitmapDat){
    return retVal;
 }
 
-u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], bool is4bpp, u32 minWidth, u32 minHeight){
+u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], uint8_t bpp, u32 minWidth, u32 minHeight){
     u8 **image = NULL;
     u32 width = 0;
     u32 height = 0;
@@ -265,7 +270,7 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], bool is
         const u8 *dataPtr = bitmapIDat;
 
         
-        if(chunk.startOffset > (width*height) / (is4bpp ? 2 : 1)){
+        if(chunk.startOffset > (width*height) / (8/bpp)){
             //Invalid graphic / misrecognized data
             free(image);
             return NULL;
@@ -277,17 +282,50 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], bool is
             u16 x = chunk.rel_positionX + (i % chunk.width);
             
             image[y][x] = dataPtr[i];
-            chunkRelDrawPixel(image, &chunk, i, dataPtr[i/(is4bpp ? 2 : 1)], is4bpp);
+            chunkRelDrawPixel(image, &chunk, i, dataPtr[i/(8/bpp)], bpp);
         }
 
         chunk = gex_gfxChunk_parseAOB(chunkHeaders + (++chunkIndex * 8));
     }
 
     return image;
-} /**/
+} 
+
+void **gfx_drawGexBitmap16bpp(const void * chunkHeaders, const void * bitmapDat, uint32_t minWidth, uint32_t minHeight){
+    void **image = NULL;
+    u32 width = 0, height = 0;
+    struct gex_gfxChunk chunk = {0};
+
+    if(!chunkHeaders || !bitmapDat) return NULL;
+    if(minWidth > IMG_MAX_WIDTH || minHeight > IMG_MAX_HEIGHT){
+        fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawSprite)\n");
+        return NULL;
+    }
+
+    if(gfx_calcRealWidthAndHeight(&width, &height, chunkHeaders)){
+        return NULL;
+    }
+    if(width < minWidth) width = minWidth;
+    if(height < minHeight) height = minHeight;
+
+    image = calloc2D(height, width, 4);
+    if(!image) return NULL;
+
+    for(u32 y = 0; y < height; y++){
+        for(u32 x = 0; x < width; x++){
+            u16 rgb555val = aob_read_LE_U16(bitmapDat + (y * width + x) * 2);
+            png_color color = bgr555toRgb888(rgb555val);
+            ((u8**)image)[y][x*4 + 0] = color.red;
+            ((u8**)image)[y][x*4 + 1] = color.green;
+            ((u8**)image)[y][x*4 + 2] = color.blue;
+            ((u8**)image)[y][x*4 + 3] = rgb555val ? 0xFF : 0;
+        }
+    }
+    return image;
+}
 
 
-u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bool is4bpp, u32 minWidth, u32 minHeight){
+u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], uint8_t bpp, u32 minWidth, u32 minHeight){
     u8 **image = NULL;
     const u8 *operationMapPtr = NULL;
     const u8 *bitmapBasePtr = NULL;
@@ -307,11 +345,9 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
         return NULL;
     }
     
-    
     if(gfx_calcRealWidthAndHeight(&width, &height, chunksHeadersAndOpMap)){
         return NULL;
     }
-
     
     if(width < minWidth) width = minWidth;
     if(height < minHeight) height = minHeight;
@@ -348,7 +384,7 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
         // type of operations
         if(operationMapPtr[omap_i] < 0x80){
             // operation: simply draw pixels from bitmap
-            u32 opCount = (operationMapPtr[omap_i] == 0 ? (is4bpp ? 1024 : 512)  : operationMapPtr[omap_i] * (is4bpp ? 8 : 4));
+            u32 opCount = (operationMapPtr[omap_i] == 0 ? 128 * bpp  : operationMapPtr[omap_i] * 32 / bpp);
 
             for(u32 op = 0; op < opCount; op++){
                 if(cpix_i >= chunk.height*chunk.width) { 
@@ -360,14 +396,14 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
                     cpix_i = 0;
                 } 
 
-                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[bitmap_i/(!is4bpp?1:2)], is4bpp);
+                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[bitmap_i/(8/bpp)], bpp);
                 bitmap_i++;
                 cpix_i++;
             }
         }
         // operation: repeat 4 pixels
         else {
-            u32 repeats = (operationMapPtr[omap_i] == 0x80 ? (is4bpp ? 1024 : 512) : (operationMapPtr[omap_i] - 0x80) * (is4bpp ? 8 : 4));
+            u32 repeats = (operationMapPtr[omap_i] == 0x80 ? bpp * 128 : (operationMapPtr[omap_i] - 0x80) * 32 / bpp);
             for(u32 op = 0; op < repeats; op++){ 
                 if(cpix_i >= chunk.height*chunk.width) { 
                     //next chunk
@@ -378,17 +414,15 @@ u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], bo
                     cpix_i = 0;
                 } 
 
-                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[(bitmap_i+(op%(is4bpp ? 8 : 4)))/(!is4bpp?1:2)], is4bpp);
+                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[(bitmap_i+(op%32 / bpp))/(8/bpp)], bpp);
                 cpix_i++;
             }
-            bitmap_i+=(is4bpp ? 8 : 4);
+            bitmap_i+= 32 / bpp;
         }
         omap_i++;   
     }
 
-
     return image;
-
 }
 
 png_color bgr555toRgb888(u16 bgr555) {
@@ -401,21 +435,30 @@ png_color bgr555toRgb888(u16 bgr555) {
     return rgb888;
 }
 
-
+uint8_t gex_gfxHeaderType_getBpp(uint32_t typeSignature){
+    switch(typeSignature & 3){
+        case 3: //?
+        case 2: return 16;
+        case 1: return 8;
+        case 0: return 4;
+    }
+    return 0;
+}
 
 // -----------------------------------------------------
 // STATIC FUNCTION DEFINITIONS:
 // -----------------------------------------------------
 
 // draw pixel relative of chunk position
-void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, bool is4bpp){
+static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, u8 bpp){
     u16 y = chunk->rel_positionY + (pix_i / chunk->width);
     u16 x = chunk->rel_positionX + (pix_i % chunk->width);
     
-    if(!is4bpp)
-        img[y][x] = pixVal;
-    else{
-        img[y][x] = (pix_i % 2 ? pixVal >> 4 : pixVal & 0x0f); 
+    if(bpp == 8) img[y][x] = pixVal;
+    else {
+        u8 shift = (8 / bpp - 1) - (pix_i % (8 / bpp));
+        u8 mask = 0xFF >> (8 - bpp);
+        img[y][x] = (pixVal >> shift) & mask;
     }
 }
 
@@ -453,7 +496,7 @@ bool gfx_calcRealWidthAndHeight(u32 *ref_width, u32 *ref_height, const void *fir
             *ref_width = chunk.rel_positionX + chunk.width;
         }
         if(chunk.rel_positionY + chunk.height > *ref_height){
-            *ref_height = chunk.rel_positionY + chunk.height + 1;
+            *ref_height = chunk.rel_positionY + chunk.height;
         }
         // chunk validatation
         if(chunk.startOffset < 20){

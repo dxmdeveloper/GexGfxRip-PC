@@ -1,7 +1,7 @@
 #pragma once
 #include "filescanning.h"
 #include "../helpers/basicdefs.h"
-#include "../essentials/Vector.h"
+#include "../essentials/vector.h"
 
 //TODO: DOCS
 //TODO: DOCS

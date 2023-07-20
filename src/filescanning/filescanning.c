@@ -24,7 +24,6 @@ struct tile_scan_cb_pack {
     
     size_t cb_iteration; //?
     size_t bmp_index;
-    u32 lastLvl; //?
 };
 
 
@@ -65,7 +64,7 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
     struct tile_scan_cb_pack cbPack = {filesStp, pass2cb, cb};
     gexdev_ptr_map bmp_headers_binds_map = {0};
     gexdev_u32vec tileBmpsOffsetsVec = {0};
-    gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->mainChunk.size - 1, fsmod_cb_tile_header_binds_compute_index);
+    gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->mainChunk.size / 32, fsmod_cb_tile_header_binds_compute_index);
     gexdev_u32vec_init_capcity(&tileBmpsOffsetsVec, 512);
 
     if(!bmp_headers_binds_map.mem_regions) exit(0xbeef);

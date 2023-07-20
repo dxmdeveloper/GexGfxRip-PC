@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "../graphics/gfx.h"
-#include "../essentials/Stack.h"
+#include "../essentials/stack.h"
 
 #define FILE_MIN_SIZE 128
 
