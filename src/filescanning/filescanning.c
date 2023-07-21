@@ -20,10 +20,10 @@ struct tile_scan_cb_pack {
     void * pass2cb;
     void (*dest_cb)(void*, const void*, const void*, const struct gfx_palette*, const char[]);
     gexdev_ptr_map * bmp_headers_binds_map;
-    const gexdev_u32vec * tileBmpsOffsetsVecp;
+    const gexdev_uptrvec * tileBmpsOffsetsVecp;
     
     size_t cb_iteration; //?
-    size_t bmp_index;
+    size_t bmp_index[2];
 };
 
 
@@ -42,8 +42,13 @@ static void fsmod_files_check_errors_and_eofs(struct fsmod_files filesStp[static
 static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk fChunkp[static 1], gexdev_u32vec * iterVec, void * clientp);
 
 /** @brief made to be used with fsmod_follow_pattern_recur.
-    @param clientp gexdev_u32vec pointer */
-static int fsmod_cb_read_offset_to_vec(fsmod_file_chunk * chunkp, gexdev_u32vec *  ignored, void * clientp);
+  * CAUTION: memory allocated inside function. free it in function client in following way:
+  * for(size_t i = 0; i < vec.size; i++) {
+  *     gexdev_u32vec_close(vec.v[i]);
+  *     free(vec.v[i]);
+  * }
+  * @param clientp gexdev_u32vec pointer */
+static int fsmod_cb_read_offset_to_nested_vec(fsmod_file_chunk * chunkp, gexdev_u32vec * iter, void * clientp);
 
 /** @brief made as callback for gexdev_ptr_map to shrink size of tile header pointers table */
 static u32 fsmod_cb_tile_header_binds_compute_index(const void* key);
@@ -52,10 +57,10 @@ static u32 fsmod_cb_tile_header_binds_compute_index(const void* key);
 static inline int _fsmod_files_init_open_and_set(const char filename[], FILE * generalFp, size_t fileSize, fsmod_file_chunk fchunk[1]);
 
 
-
 // ___________________________________________________ FUNCTION DEFINITIONS ___________________________________________________
 
 // ------------------- Extern functions definitions: -------------------
+
 
 void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
                       void cb(void * clientp, const void *bitmap, const void *headerAndOpMap,
@@ -63,9 +68,9 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
 {
     struct tile_scan_cb_pack cbPack = {filesStp, pass2cb, cb};
     gexdev_ptr_map bmp_headers_binds_map = {0};
-    gexdev_u32vec tileBmpsOffsetsVec = {0};
+    gexdev_uptrvec tileBmpsOffsetsVec = {0};
     gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->mainChunk.size / 32, fsmod_cb_tile_header_binds_compute_index);
-    gexdev_u32vec_init_capcity(&tileBmpsOffsetsVec, 512);
+    gexdev_uptrvec_init_capcity(&tileBmpsOffsetsVec, 32);
 
     if(!bmp_headers_binds_map.mem_regions) exit(0xbeef);
     if(!tileBmpsOffsetsVec.v) exit(0xbeef);
@@ -77,7 +82,11 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
     jmp_buf errbuf; jmp_buf * errbufp = &errbuf; int errno = 0;
     jmp_buf * prev_errbufp = filesStp->error_jmp_buf;
     if((errno = setjmp(errbuf))){
-        gexdev_u32vec_close(&tileBmpsOffsetsVec);
+        for(size_t i = 0; i < tileBmpsOffsetsVec.size; i++) {
+            gexdev_u32vec_close(tileBmpsOffsetsVec.v[i]);
+            free(tileBmpsOffsetsVec.v[i]);
+        }
+        gexdev_uptrvec_close(&tileBmpsOffsetsVec);
         gexdev_ptr_map_close_all(&bmp_headers_binds_map);
         filesStp->error_jmp_buf = prev_errbufp;
         if(prev_errbufp) longjmp(*prev_errbufp, errno);
@@ -87,14 +96,18 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
 
 
     fsmod_follow_pattern_recur(&filesStp->tilesChunk, "e[G{C};]", &tileBmpsOffsetsVec,
-                             fsmod_cb_read_offset_to_vec, errbufp);
+                             fsmod_cb_read_offset_to_nested_vec, errbufp);
 
     fsmod_follow_pattern_recur(&filesStp->mainChunk, "e+0x28g[G{C};]", &cbPack,
                              fsmod_prep_tile_gfx_data_and_exec_cb, errbufp);
     
     // cleanup
     gexdev_ptr_map_close_all(&bmp_headers_binds_map);
-    gexdev_u32vec_close(&tileBmpsOffsetsVec);
+    for(size_t i = 0; i < tileBmpsOffsetsVec.size; i++) {
+        gexdev_u32vec_close(tileBmpsOffsetsVec.v[i]);
+        free(tileBmpsOffsetsVec.v[i]);
+    }
+    gexdev_uptrvec_close(&tileBmpsOffsetsVec);
     filesStp->error_jmp_buf = prev_errbufp;
 }
 
@@ -189,11 +202,21 @@ size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_
 
 // ------------------- Static functions definitions: -------------------
 
-static int fsmod_cb_read_offset_to_vec(fsmod_file_chunk * chp, gexdev_u32vec* ignored, void * clientp){
-    gexdev_u32vec * vecp = clientp;
+static int fsmod_cb_read_offset_to_nested_vec(fsmod_file_chunk * chp, gexdev_u32vec* iter, void * clientp){
+    gexdev_uptrvec * vecp = clientp;
     u32 offset = fsmod_read_infile_ptr(chp->ptrsFp, chp->offset, NULL);
     if(!offset) return 0;
-    gexdev_u32vec_push_back(vecp, offset);
+
+    while(vecp->size <= iter->v[0]){
+        gexdev_u32vec * u32vecp = calloc(1, sizeof(gexdev_u32vec));
+        if(!u32vecp) exit(0xbeef);
+        gexdev_u32vec_init_capcity(u32vecp, 128);
+        if(!u32vecp->v) exit(0xbeef);
+
+        gexdev_uptrvec_push_back(vecp, u32vecp);
+    }
+
+    gexdev_u32vec_push_back(vecp->v[iter->v[0]], offset);
     return 1;
 }
 
@@ -214,6 +237,10 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         return 0;
     }
     // - - - -- - - - - -
+    if(packp->bmp_index[0] != iterVecp->v[0]){
+        packp->bmp_index[0] = iterVecp->v[0];
+        packp->bmp_index[1] = 0;
+    }
 
     fseek(mainChp->ptrsFp, 4, SEEK_CUR);
 
@@ -235,34 +262,31 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         size_t bitmap_size = 0, required_size = 0;
         u16 tileWidthAndHeight[2] = {0};
 
-        //fread_LE_U16(tileWidthAndHeight, 2, tileChp->dataFp); // TODO: error handling
-        //bitmap_size = tileWidthAndHeight[0] * 2 * tileWidthAndHeight[1]; // TODO: fix bitmap size calc
-
         if(!gex_gfxHeadersFToAOB(mainChp->dataFp, &header)) /* <- mem allocated */{
             fprintf(stderr,"bad header at: %lu (%zu)\n", ftell(mainChp->dataFp), packp->cb_iteration);
             if(header) free(header); header = NULL;
-
-            //if(!packp->bmp_headers_binds_map[(headerOffset - mainChp->offset) / 28])
-                packp->bmp_index++;
+            packp->bmp_index[1]++;
 
             //longjmp(errbufp, FSMOD_READ_ERROR_WRONG_VALUE);
             return 1; // skip
         } 
 
         required_size = gfx_checkSizeOfBitmap(header);
-        //! TESTS 
-        //bitmap_size *= 2; // ?????
 
-        if(/*bitmap_size >= required_size &&*/ required_size){
+        if(required_size){
             // bitmap data read if not cached
             u32 rel_header_offset = headerOffset - mainChp->offset;
             void * mapped_ptr= gexdev_ptr_map_get(packp->bmp_headers_binds_map, &rel_header_offset);
             if(mapped_ptr)
                 bitmap = mapped_ptr;
             else {
-                if(packp->tileBmpsOffsetsVecp->size <= packp->bmp_index) return 0; //?
-                fseek(tileChp->dataFp, packp->tileBmpsOffsetsVecp->v[packp->bmp_index] + 4 /* bmp size skip */, SEEK_SET);
-                packp->bmp_index++;
+                gexdev_u32vec * offsetvecp = NULL;
+                if(packp->tileBmpsOffsetsVecp->size <= packp->bmp_index[0]) return 0; //?
+                offsetvecp = packp->tileBmpsOffsetsVecp->v[packp->bmp_index[0]];
+                if(offsetvecp->size <= packp->bmp_index[1]) return 0 ;//?
+
+                fseek(tileChp->dataFp, offsetvecp->v[packp->bmp_index[1]] + 4 /* bmp size skip */, SEEK_SET);
+                packp->bmp_index[1]++;
                 
                 if(!(bitmap = malloc(required_size))) exit(0xbeef);
                 fsmod_fread(bitmap, 1, required_size, tileChp->dataFp, errbufp); 

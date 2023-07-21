@@ -71,7 +71,7 @@ void gexdev_uptrvec_close(gexdev_uptrvec *vecp) {
     if(vecp->v) free(vecp->v);
 }
 
-int gexdev_uptrvec_push_back(gexdev_uptrvec *vecp, uint32_t val) {
+int gexdev_uptrvec_push_back(gexdev_uptrvec *vecp, void * val) {
     if(vecp->size == vecp->capacity){
         vecp->v = realloc(vecp->v, vecp->capacity * 2 * 4);
         if(!vecp->v) return EXIT_FAILURE;

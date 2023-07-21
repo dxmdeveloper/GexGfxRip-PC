@@ -11,7 +11,7 @@ typedef struct _gexdev_tools_u32vector_structure {
 typedef struct _gexdev_tools_uptrvector_structure {
     size_t size;
     size_t capacity;
-    uint32_t *v;
+    void **v;
 } gexdev_uptrvec;
 
 ///@return EXIT_SUCCESS or EXIT_FAILURE
@@ -42,7 +42,7 @@ int gexdev_uptrvec_init_capcity(gexdev_uptrvec * vecp, size_t capacity);
 void gexdev_uptrvec_close(gexdev_uptrvec * vecp);
 
 ///@return EXIT_SUCCESS or EXIT_FAILURE
-int gexdev_uptrvec_push_back(gexdev_uptrvec * vecp, uint32_t val);
+int gexdev_uptrvec_push_back(gexdev_uptrvec * vecp, void * val);
 
 void gexdev_uptrvec_pop_back(gexdev_uptrvec * vecp);
 

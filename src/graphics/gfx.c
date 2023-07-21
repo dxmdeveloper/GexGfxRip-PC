@@ -305,10 +305,8 @@ void **gfx_drawGexBitmap16bpp(const void * chunkHeaders, const void * bitmapDat,
     if(gfx_calcRealWidthAndHeight(&width, &height, chunkHeaders)){
         return NULL;
     }
-    if(width < minWidth) width = minWidth;
-    if(height < minHeight) height = minHeight;
 
-    image = calloc2D(height, width, 4);
+    image = calloc2D(MAX(height, minHeight), MAX(width, minWidth), 4);
     if(!image) return NULL;
 
     for(u32 y = 0; y < height; y++){
