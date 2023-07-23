@@ -32,7 +32,7 @@ int fsmod_follow_pattern(fsmod_file_chunk fileChunk[1], const char pattern[], jm
 // G{} - pg{}B
 // ;z]
 size_t fsmod_follow_pattern_recur(fsmod_file_chunk fChunk[1], const char pattern[], void * pass2cb,
-                                  int cb(fsmod_file_chunk fChunk[1], gexdev_u32vec * iterVecp, void * clientp), jmp_buf * error_jmp_buf);
+                                  int cb(fsmod_file_chunk fChunk[1], gexdev_u32vec * iterVecp, void * clientp), jmp_buf ** errbufpp);
 
 /// @brief finds end of scope by characters like } or ]
 /// @param str array of character starting with opening character

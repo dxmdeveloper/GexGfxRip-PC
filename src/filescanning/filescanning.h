@@ -2,10 +2,26 @@
 #define _FILESCANNING_H_ 1
 #include <stdlib.h>
 #include <stdint.h>
+#include <setjmp.h>
 #include "../graphics/gfx.h"
 #include "../essentials/stack.h"
 
 #define FILE_MIN_SIZE 128
+
+// ONE USE PER CODE BLOCK!
+#define FSMOD_ERRBUF_EXTEND(bufp, extension_code)               \
+    jmp_buf new_error_jump_buffor; int errbuf_errno = 0;        \
+    jmp_buf * prev_error_jump_bufforp = bufp;                   \
+    bufp = &new_error_jump_buffor;                              \
+    if((errbuf_errno = setjmp(new_error_jump_buffor))){         \
+        extension_code                                          \
+        bufp = prev_error_jump_bufforp;                         \
+        if(bufp) longjmp(*bufp, errbuf_errno);                  \
+        else exit(errbuf_errno);                                \
+    }
+
+#define FSMOD_ERRBUF_REVERT(bufp) bufp = prev_error_jump_bufforp
+
 
 /// @brief function scanning memory for u32 value
 /// @param endPtr end of the scanning range. The offset is excluded from the scan.
@@ -29,7 +45,7 @@ enum fsmod_level_type_enum {
     FSMOD_LEVEL_FLAG_NO_GFX    = 1 << 2,
 };
 
-enum fsmod_file_read_errno_enum {
+enum fsmod_errno_enum {
     FSMOD_READ_NO_ERROR = 0,
     FSMOD_READ_ERROR_FERROR,
     FSMOD_READ_ERROR_FREAD,
@@ -39,6 +55,7 @@ enum fsmod_file_read_errno_enum {
     FSMOD_READ_ERROR_UNEXPECTED_NULL,
     FSMOD_READ_ERROR_UNEXPECTED_EOF,
     FSMOD_READ_ERROR_WRONG_VALUE,
+    FSMOD_ERROR_INDEX_OUT_OF_RANGE,
 };
 typedef struct fsmod_file_chunk_structure {
     FILE * dataFp;
@@ -57,7 +74,7 @@ struct fsmod_files {
 
 void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
                       void cb(void * clientp, const void *bitmap, const void *headerAndOpMap,
-                              const struct gfx_palette *palette, const char suggestedName[]));
+                              const struct gfx_palette *palette, uint16_t tileGfxId, uint16_t tileAnimFrameIndex));
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */

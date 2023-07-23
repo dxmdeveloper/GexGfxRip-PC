@@ -16,7 +16,7 @@
 #endif
 
 // STATIC DECLARATIONS:
-void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char filename[]);
+void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, u16 tileGfxID, u16 tileAnimFrameI);
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
 }
@@ -75,10 +75,9 @@ int main(int argc, char *argv[]) {
 //-------------------------------------------------------------------
 
 
-
 // callback function for scan4Gfx
 // TODO: output filename based on program argument
-void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, const char ofilename[]){
+void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMap, const struct gfx_palette *palette, u16 tileGfxID, u16 tileAnimFrameI){
     png_byte ** image = NULL;
     char filePath[PATH_MAX] = "\0";
     FILE * filep = NULL;
@@ -109,10 +108,6 @@ void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMa
         return;
     }
     
-    if(ofilename == NULL){
-        fprintf(stderr, "Err: ofilename is nullptr (main.c:onfoundClbFunc)");
-        return;
-    }
     else if((gfxHeader.typeSignature & 1) && palette->colorsCount < 256){
         fprintf(stderr, "Err: color palette and graphic types mismatch\n");
         return;
@@ -121,12 +116,12 @@ void onfoundClbFunc(void *clientp, const void *bitmap, const void *headerAndOpMa
     // Image creation
     image = gfx_drawImgFromRaw(headerAndOpMap, bitmap);
     if(image == NULL) {
-        dbg_errlog("DEBUG: failed to create %s", ofilename);
+        dbg_errlog("DEBUG: failed to create %s", filePath);
         return;
     }
     
     // File opening
-    snprintf(filePath, PATH_MAX-1, "%s%s", appoptp->savePath, ofilename);
+    snprintf(filePath, PATH_MAX-1, "%s%04X-%d.png", appoptp->savePath, tileGfxID, tileAnimFrameI);
     if((filep = fopen(filePath, "wb")) == NULL){
         fprintf(stderr, "Err: Cannot open file %s\n", filePath);
         free(image);
