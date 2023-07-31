@@ -1,6 +1,5 @@
 #pragma once
 #include "filescanning.h"
-#include "../helpers/basicdefs.h"
 #include "../essentials/vector.h"
 
 //TODO: DOCS

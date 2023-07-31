@@ -3,7 +3,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <setjmp.h>
+#include "filescanning_tiles.h"
 #include "../graphics/gfx.h"
+#include "../essentials/vector.h"
 #include "../essentials/stack.h"
 
 #define FILE_MIN_SIZE 128
@@ -72,10 +74,6 @@ struct fsmod_files {
     jmp_buf* error_jmp_buf;
 };
 
-void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
-                      void cb(void * clientp, const void *bitmap, const void *headerAndOpMap,
-                              const struct gfx_palette *palette, uint16_t tileGfxId, uint16_t tileAnimFrameIndex));
-
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
 uint32_t fsmod_read_infile_ptr(FILE * fp, uint32_t chunkOffset, jmp_buf *error_jmp_buf);
@@ -89,6 +87,16 @@ size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_
 // filesStp->error_jmp_buf MUST be set before or after initialization
 int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]);
 void fsmod_files_close(struct fsmod_files * filesStp);
+
+
+/////** @brief checks file pointers for errors and eofs. if at least one has an error or eof flag jumps to error_jmp_buf
+////    @param mode 0 - check all, 1 - check only ptrsFps, 2 - check only dataFps */
+////void fsmod_files_check_errors_and_eofs(struct fsmod_files filesStp[static 1], int mode);
+
+/** @brief made to be used with fsmod_follow_pattern_recur.
+  * @param clientp gexdev_u32vec vec[2]. First for pointing block of tile bitmaps start indexes in second vector.
+  * The second vector keeps offsets of tile bitmaps */
+int fsmod_cb_read_offset_to_vec_2lvls(fsmod_file_chunk * chunkp, gexdev_u32vec * iter, void * clientp);
 
 
 #endif

@@ -1,4 +1,5 @@
 #include "fseeking_helper.h"
+#include "../helpers/basicdefs.h"
 
 const char * strFindScopeEndFromInside(const char str[], char openChar, char closeChar){
     for(u32 openChCnt = 0; openChCnt || *str != closeChar; str++){

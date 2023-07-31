@@ -59,9 +59,11 @@ src = [
   'src/graphics/write_png.c',
   'src/graphics/gfx.c',
   'src/filescanning/filescanning.c',
+  'src/filescanning/filescanning_tiles.c',
   'src/filescanning/fseeking_helper.c',
-  'src/essentials/Vector.c',
-  'src/essentials/Stack.c']
+  'src/essentials/ptr_map.c',
+  'src/essentials/vector.c',
+  'src/essentials/stack.c'] 
 exe = executable('gexgfxrip', src, dependencies : deps)
 
 test('simple test', exe)
