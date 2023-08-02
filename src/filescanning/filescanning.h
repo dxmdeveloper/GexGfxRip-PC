@@ -11,7 +11,7 @@
 #define FILE_MIN_SIZE 128
 
 // ONE USE PER CODE BLOCK!
-#define FSMOD_ERRBUF_EXTEND(bufp, extension_code)               \
+#define FSMOD_ERRBUF_CHAIN_ADD(bufp, extension_code)            \
     jmp_buf new_error_jump_buffor; int errbuf_errno = 0;        \
     jmp_buf * prev_error_jump_bufforp = bufp;                   \
     bufp = &new_error_jump_buffor;                              \

@@ -47,7 +47,7 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
     cbPack.tileBmpsOffsetsVecp = tileBmpsOffsetsVec;
 
     // ---------------------- error handling ----------------------
-    FSMOD_ERRBUF_EXTEND(filesStp->error_jmp_buf, 
+    FSMOD_ERRBUF_CHAIN_ADD(filesStp->error_jmp_buf, 
         gexdev_u32vec_close(&tileBmpsOffsetsVec[0]);
         gexdev_u32vec_close(&tileBmpsOffsetsVec[1]);
         gexdev_ptr_map_close_all(&bmp_headers_binds_map);
@@ -78,7 +78,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
     jmp_buf ** errbufpp = &packp->filesStp->error_jmp_buf;
 
     // error handling
-    FSMOD_ERRBUF_EXTEND(*errbufpp,
+    FSMOD_ERRBUF_CHAIN_ADD(*errbufpp,
         fprintf(stderr, "fsmod_prep_tile_gfx_data_and_exec_cb fread error\n");
         if(header) free(header);
     );
