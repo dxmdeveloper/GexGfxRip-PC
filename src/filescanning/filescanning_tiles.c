@@ -24,7 +24,7 @@ static u32 fsmod_cb_tile_header_binds_compute_index(const void* key);
 
 /** @brief specific use function. Use as fsmod_follow_pattern_recur's callback while scanning for tiles. 
   * @param clientp struct tile_scan_cb_pack */
-static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk fChunkp[static 1], gexdev_u32vec * iterVec, void * clientp);
+static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk fChunkp[static 1], gexdev_u32vec * iterVec, u32 * ivars, void * clientp);
 
 // ---------------- FUNC DEFINITIONS ----------------
 
@@ -58,9 +58,21 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
     fsmod_follow_pattern_recur(&filesStp->tilesChunk, "e[G{C};]", &tileBmpsOffsetsVec,
                              fsmod_cb_read_offset_to_vec_2lvls, &filesStp->error_jmp_buf);
 
-    fsmod_follow_pattern_recur(&filesStp->mainChunk, "e+0x28g[G{C};]", &cbPack,
+    fsmod_follow_pattern_recur(&filesStp->mainChunk, "e+0x28g[G{+4C};]", &cbPack,
                              fsmod_prep_tile_gfx_data_and_exec_cb, &filesStp->error_jmp_buf);
-    
+
+    // anim tiles                         
+    fsmod_follow_pattern_recur(&filesStp->mainChunk, 
+    "e+0x28g[G{       " /* go to tile gfx blocks                                               */
+    "   g                     " /* follow first pointer in a tile gfx block                            */ 
+    "   [                     " /* open null-terminated do while loop and reset counter                */
+    "       +4 r($0,1,u16) -6 " /* move file cursor by 4, read tile gfx id to first internal var, back */
+    "       G{C}              " /* follow pointer and call callback until it return non-zero value     */
+    "       +16               " /* go to next animation                                                */
+    "   ;]                    " 
+    "};]                      ",
+    &cbPack,fsmod_prep_tile_gfx_data_and_exec_cb, &filesStp->error_jmp_buf);
+
     // cleanup
     gexdev_ptr_map_close_all(&bmp_headers_binds_map);
     gexdev_u32vec_close(&tileBmpsOffsetsVec[0]);
@@ -68,7 +80,7 @@ void fsmod_tiles_scan(struct fsmod_files * filesStp, void *pass2cb,
     FSMOD_ERRBUF_REVERT(filesStp->error_jmp_buf);
 }
 
-static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexdev_u32vec * iterVecp, void * clientp){
+static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexdev_u32vec * iterVecp, u32 * ivars, void * clientp){
     struct tile_scan_cb_pack * packp = clientp;
     void * header = NULL;
     void * bitmap = NULL;
@@ -76,6 +88,8 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
     fsmod_file_chunk * mainChp = &packp->filesStp->mainChunk;
     fsmod_file_chunk * tileChp = &packp->filesStp->tilesChunk;
     jmp_buf ** errbufpp = &packp->filesStp->error_jmp_buf;
+    u32 tileGfxID = 0;
+    u16 tileAnimFrameI = 0;
 
     // error handling
     FSMOD_ERRBUF_CHAIN_ADD(*errbufpp,
@@ -83,28 +97,40 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         if(header) free(header);
     );
 
-    // check if the current iteration is in new tile gfx block
-    if(packp->bmp_index[0] != iterVecp->v[0]){
-        packp->bmp_index[0] = iterVecp->v[0];
-        packp->bmp_index[1] = 0;
+    // base tile
+    if(!ivars[0]){
+        // tile graphic id read
+        fread_LE_U32(&tileGfxID, 1, mainChp->ptrsFp);
+        if(tileGfxID == 0xFFFFFFFF) {FSMOD_ERRBUF_REVERT(*errbufpp); return 0;} // end of tile list
+
+        // check if the current iteration is in new tile gfx block
+        if(packp->bmp_index[0] != iterVecp->v[0]){
+            packp->bmp_index[0] = iterVecp->v[0];
+            packp->bmp_index[1] = 0;
+        }
+    // tile animation frame
+    } else {
+        tileGfxID = ivars[0];
+
+        // use bmp_index in diffrent context - check index of animation frame
+        // ???
+        if(packp->bmp_index[0] != iterVecp->v[1]){
+            packp->bmp_index[0] = iterVecp->v[1];
+            packp->bmp_index[1] = 1;
+        }
+        tileAnimFrameI = packp->bmp_index[1]++;
     }
-
-    fseek(mainChp->ptrsFp, 4, SEEK_CUR);
-
-    // tile graphic id read
-    u32 tileGfxID = 0;
-    fread_LE_U32(&tileGfxID, 1, mainChp->ptrsFp);
-    if(tileGfxID == 0xFFFFFFFF) {FSMOD_ERRBUF_REVERT(*errbufpp); return 0;} // end of tile list
 
     // gfx header read
     u32 headerOffset = fsmod_read_infile_ptr(mainChp->ptrsFp, mainChp->offset, *errbufpp);
     u32 paletteOffset = fsmod_read_infile_ptr(mainChp->ptrsFp, mainChp->offset, *errbufpp);
 
-    if(!headerOffset){FSMOD_ERRBUF_REVERT(*errbufpp); return 1;}
+    if(!headerOffset){FSMOD_ERRBUF_REVERT(*errbufpp); return 0;}
     fseek(mainChp->dataFp, headerOffset, SEEK_SET);
 
     if(!gex_gfxHeadersFToAOB(mainChp->dataFp, &header)) /* <- mem allocated */{
         // HEADER WITHOUT DIMENSIONS = SKIP BITMAP
+        fseek(mainChp->ptrsFp, 4, SEEK_CUR);
         if(header) free(header); header = NULL;
         packp->bmp_index[1]++;
         FSMOD_ERRBUF_REVERT(*errbufpp);
@@ -142,7 +168,10 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
     gfx_palette_parsef(mainChp->dataFp, &pal);
 
     // CALLING ONFOUND CALLBACK
-    packp->dest_cb(packp->pass2cb, bitmap, header, &pal, tileGfxID, 0);
+    packp->dest_cb(packp->pass2cb, bitmap, header, &pal, (u16)tileGfxID, tileAnimFrameI);
+
+    // omit 4 bytes (I don't know what it is)
+    fseek(mainChp->ptrsFp, 4, SEEK_CUR);
 
     // cleanup
     if(header) free(header);

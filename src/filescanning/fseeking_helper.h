@@ -20,7 +20,7 @@ int fsmod_follow_pattern(fsmod_file_chunk fileChunk[1], const char pattern[], jm
 /** @brief function made to speed up file seeking programming. recursive version.
   ** Internal variables:
   * function have array of 32bit variables of size INTERNAL_VAR_CNT (32)
-  * @param pattern a string not bigger than 256 characters.
+  * @param pattern a string not bigger than 256 characters (excluding white spaces).
   ** Instructions in pattern:
   * +number/-number     - move ptrsFp by offset; 
   * g - goto gexptr     - reads and follow pointer;
@@ -30,7 +30,7 @@ int fsmod_follow_pattern(fsmod_file_chunk fileChunk[1], const char pattern[], jm
   * C - call callback until it returns non-zero value;
   * d - dataFp goto     - resolves gexptr ptrsFp and sets dataFp to the resolved offset;
   * D - the same as d but can break ;] loop
-  * G{} - goto gexptr recursively - equivalent of pg|some instructions|b+4. Can break ;] loop.
+  * G{} - go into and back - equivalent of pg|some instructions|b+4. Can break ;] loop.
   * r(dest,n,type) - reads n values from ptrsFp to dest.
   * *  Allowed dest params: stdout, print, $(internal_var index). stdout and print is the same.
   * *  n param - count of elements to read. If internal variable is used as dest then every element will be read into next 32bit var no matter of type.

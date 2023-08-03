@@ -19,7 +19,7 @@ const char * strFindScopeEnd(const char str[], char closeChar){
 
 /** @brief checks if str1 starts with str2. Function is case insensive.
   * @return 1 if str1 starts with str2. 0 otherwise */
-static int strstartswith_ci(const char * restrict str1, const char * restrict str2){
+static inline int strstartswith_ci(const char * restrict str1, const char * restrict str2){
     while(*str2){
         if(!*str1 || (toupper(*str1) != toupper(*str2))) return 0;
         str1++; str2++;
@@ -29,7 +29,7 @@ static int strstartswith_ci(const char * restrict str1, const char * restrict st
 
 /** @brief checks if str1 starts with str2. Function is case sensive.
   * @return 1 if str1 starts with str2. 0 otherwise */
-static int strstartswith_cs(const char * restrict str1, const char * restrict str2){
+static inline int strstartswith_cs(const char * restrict str1, const char * restrict str2){
     while(*str2){
         if(!*str1 || (*str1 != *str2)) return 0;
         str1++; str2++;
@@ -48,65 +48,112 @@ static inline char * str_rewrite_without_whitespaces(char * dest, const char * s
     return dest;
 }
 
-static inline void _fsmod_follow_pattern_read(const char ** pcurp, FILE * fp, jmp_buf * error_jmp_buf){
+/// @return EXIT_SUCCESS or EXIT_FAIULRE
+static inline int _fsmod_follow_pattern_read(const char ** pcurp, FILE * fp, u32 *ivars, jmp_buf * error_jmp_buf){
+    #define DESTTYPE_FILE 0
+    #define DESTTYPE_INTERNAL_VAR 1
+
     unsigned long rcount = 0;
     char priformat[16] = "\0";
+    uint destType = 0; // print/stdout = 0, internal var = 1
+    uint ivarIndex = 0;
 
-    if((*pcurp)[1] != '{') return;
+    if((*pcurp)[1] != '(') return EXIT_FAILURE;
     (*pcurp) += 2;
-    const char * expr_end = strFindScopeEndFromInside((*pcurp), '{', '}');
+    const char * expr_end = strFindScopeEndFromInside((*pcurp), '(', ')');
 
-    // output param
+    // dest param
     if(strstartswith_ci((*pcurp), "stdout")
     || strstartswith_ci((*pcurp), "print" )){
+        destType = DESTTYPE_FILE;
         printf("%0lX:\n", ftell(fp));
-        if(!((*pcurp)=strchr((*pcurp), ':'))) {(*pcurp) = expr_end; return;}
-        // how many values to read param
-        rcount = strtoul(++(*pcurp), NULL, 0);
-        if(!((*pcurp)=strchr((*pcurp), ':'))) {(*pcurp) = expr_end; return;}
-
-        // format param
-        uint bytes = (uint)atoi((++(*pcurp))+1) / 8;
-        if(bytes==0) bytes = 1;
-        bool isSigned = false;
-
-        switch(**pcurp){
-            case 'X': sprintf(priformat,"%%0%uX ", bytes*2); break;
-            case 'x': sprintf(priformat,"%%0%ux ", bytes*2); break;
-            case 'u': case 'U': strcpy(priformat,"%u ");     break;
-            case 'i': case 'I': strcpy(priformat,"%i "); isSigned = true; break;
-        }
-        if(strchr((*pcurp), 'n') && strchr((*pcurp), 'n') < expr_end){
-            strcat(priformat, "\n"); 
-        }
-
-        void * buf = calloc(rcount, bytes);
-        switch (bytes) {
-            case 1: fread(buf, 1, rcount, fp); break;
-            case 2: fread_LE_U16(buf, rcount, fp); break;
-            case 4: fread_LE_U32(buf, rcount, fp); break;
-        }
-        for(unsigned long i = 0; i < rcount; i++){
-            switch (bytes) {
-                case 1: if(isSigned) printf(priformat, ((i8*)buf)[i]);
-                        else printf(priformat, ((u8*)buf)[i]); break;
-                case 2: if(isSigned) printf(priformat, ((i16*)buf)[i]);
-                        else printf(priformat, ((u16*)buf)[i]); break;
-                case 4: if(isSigned) printf(priformat, ((i32*)buf)[i]);
-                        else printf(priformat, ((u32*)buf)[i]); break;
-            }
-        }
-        printf("\n");
-        if(buf) free(buf);
     }
+    else if(**pcurp == '$' && ivars){ 
+        destType = DESTTYPE_INTERNAL_VAR;
+        ivarIndex = (uint) strtoul(++(*pcurp), NULL, 0);
+    }
+    else {(*pcurp) = expr_end; return EXIT_FAILURE;}
+
+    // how many values to read param
+    if(!((*pcurp)=strchr((*pcurp), ','))) {(*pcurp) = expr_end; return EXIT_FAILURE;}
+
+    rcount = strtoul(++(*pcurp), NULL, 0);
+
+    if(destType == DESTTYPE_INTERNAL_VAR 
+    && rcount >= ivarIndex + INTERNAL_VAR_CNT) {(*pcurp) = expr_end; return EXIT_FAILURE;}
+
+    // format param
+    if(!((*pcurp)=strchr((*pcurp), ','))) {(*pcurp) = expr_end; return EXIT_FAILURE;}
+
+    uint bytes = (uint)atoi((++(*pcurp))+1) / 8;
+    if(bytes==0) bytes = 1;
+    bool isSigned = false;
+
+    switch(destType){
+        case DESTTYPE_FILE: {
+            switch(**pcurp){
+                case 'X': sprintf(priformat,"%%0%uX ", bytes*2); break;
+                case 'x': sprintf(priformat,"%%0%ux ", bytes*2); break;
+                case 'u': case 'U': strcpy(priformat,"%u ");     break;
+                case 'i': case 'I': strcpy(priformat,"%i "); isSigned = true; break;
+                default: (*pcurp) = expr_end; return EXIT_FAILURE;
+            }
+            if(strchr((*pcurp), 'n') && strchr((*pcurp), 'n') < expr_end)
+                strcat(priformat, "\n"); 
+        } break;
+
+        case DESTTYPE_INTERNAL_VAR: {
+            if(!strchr("XxUuIi", **pcurp)) {(*pcurp) = expr_end; return EXIT_FAILURE;}
+            if(toupper(**pcurp) == 'I') isSigned = true;
+        } break;
+    }
+
+    void * buf = calloc(rcount, bytes);
+    size_t successfully_read = 0;
+    switch (bytes) {
+        case 1: successfully_read = fread(buf, 1, rcount, fp); break;
+        case 2: successfully_read = fread_LE_U16(buf, rcount, fp); break;
+        case 4: successfully_read = fread_LE_U32(buf, rcount, fp); break;
+    }
+    if(successfully_read < rcount){free(buf); (*pcurp) = expr_end; return EXIT_FAILURE;}
+
+    for(unsigned long i = 0; i < rcount; i++){
+        switch(destType){
+            case DESTTYPE_FILE:
+                switch (bytes) {
+                    case 1: if(isSigned) printf(priformat, ((i8*)buf)[i]);
+                            else printf(priformat, ((u8*)buf)[i]); break;
+                    case 2: if(isSigned) printf(priformat, ((i16*)buf)[i]);
+                            else printf(priformat, ((u16*)buf)[i]); break;
+                    case 4: if(isSigned) printf(priformat, ((i32*)buf)[i]);
+                            else printf(priformat, ((u32*)buf)[i]); break;
+                } break;
+
+            case DESTTYPE_INTERNAL_VAR:
+                switch (bytes) {
+                    case 1: if(isSigned) *(i32*)&ivars[ivarIndex + i] = (i32)((i8*)buf)[i];
+                            else ivars[ivarIndex + i] = (u32)((u8*)buf)[i]; break;
+                    case 2: if(isSigned) *(i32*)&ivars[ivarIndex + i] = (i32)((i16*)buf)[i];
+                            else ivars[ivarIndex + i] = (u32)((u16*)buf)[i]; break;
+                    case 4: if(isSigned) *(i32*)&ivars[ivarIndex + i] = ((i32*)buf)[i];
+                            else ivars[ivarIndex + i] = ((u32*)buf)[i]; break;
+                } break;
+        }
+    }
+    if(destType == DESTTYPE_FILE) printf("\n");
+    if(buf) free(buf);
+    
     *pcurp = expr_end;
-    // TODO: INTERNAL Vars
+    return EXIT_SUCCESS;
+    #undef DESTTYPE_FILE 
+    #undef DESTTYPE_INTERNAL_VAR 
 }
 
 
 int fsmod_follow_pattern(fsmod_file_chunk * fch, const char pattern[], jmp_buf * error_jmp_buf){
     u32 u32val = 0;
     int intVal = 0;
+    //u32 internalVars[INTERNAL_VAR_CNT] = {0};
 
     if(pattern[0] == 'e') {
         fseek(fch->ptrsFp, fch->ep, SEEK_SET);
@@ -130,7 +177,7 @@ int fsmod_follow_pattern(fsmod_file_chunk * fch, const char pattern[], jmp_buf *
                 if(!offset) return EXIT_FAILURE;
                 fseek(fch->dataFp, offset, SEEK_SET);       
             } break; 
-            case 'r': _fsmod_follow_pattern_read(&pcur, fch->ptrsFp, error_jmp_buf); break;
+            case 'r': _fsmod_follow_pattern_read(&pcur, fch->ptrsFp, NULL, error_jmp_buf); break;
         }
     }
     return EXIT_SUCCESS;
@@ -256,7 +303,7 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 }
                 fseek(fch->dataFp, offset, SEEK_SET);
             } break;
-            case 'r': _fsmod_follow_pattern_read(&pcur, fch->ptrsFp, *errbufpp);
+            case 'r': _fsmod_follow_pattern_read(&pcur, fch->ptrsFp, internalVars, *errbufpp);
         }
     }
 

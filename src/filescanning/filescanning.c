@@ -109,7 +109,7 @@ size_t fsmod_fread(void *dest, size_t size, size_t n, FILE * fp, jmp_buf *error_
 }
 
 
-int fsmod_cb_read_offset_to_vec_2lvls(fsmod_file_chunk * chp, gexdev_u32vec* iter, void * clientp){
+int fsmod_cb_read_offset_to_vec_2lvls(fsmod_file_chunk * chp, gexdev_u32vec *iter, u32 *ivars, void * clientp){
     gexdev_u32vec * vec_arr = clientp; //[2]
     u32 offset = fsmod_read_infile_ptr(chp->ptrsFp, chp->offset, NULL);
     if(!offset) return 0;

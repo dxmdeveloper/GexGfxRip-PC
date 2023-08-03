@@ -96,7 +96,7 @@ void fsmod_files_close(struct fsmod_files * filesStp);
 /** @brief made to be used with fsmod_follow_pattern_recur.
   * @param clientp gexdev_u32vec vec[2]. First for pointing block of tile bitmaps start indexes in second vector.
   * The second vector keeps offsets of tile bitmaps */
-int fsmod_cb_read_offset_to_vec_2lvls(fsmod_file_chunk * chunkp, gexdev_u32vec * iter, void * clientp);
+int fsmod_cb_read_offset_to_vec_2lvls(fsmod_file_chunk * chunkp, gexdev_u32vec * iter, uint32_t * ivars, void * clientp);
 
 
 #endif
