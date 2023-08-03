@@ -16,7 +16,9 @@ struct tile_scan_cb_pack {
     gexdev_ptr_map * bmp_headers_binds_map;
     const gexdev_u32vec * tileBmpsOffsetsVecp; // array of 2 vectors
     
-    size_t bmp_index[2];
+    size_t bmp_index[32];
+    u32 lastAnimGfxId;
+    u32 lastAnimFrameI;
 };
 
 /** @brief made as callback for gexdev_ptr_map to shrink size of tile header pointers table */
@@ -90,6 +92,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
     jmp_buf ** errbufpp = &packp->filesStp->error_jmp_buf;
     u32 tileGfxID = 0;
     u16 tileAnimFrameI = 0;
+    uint blockIndex = iterVecp->v[0];
 
     // error handling
     FSMOD_ERRBUF_CHAIN_ADD(*errbufpp,
@@ -103,22 +106,15 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         fread_LE_U32(&tileGfxID, 1, mainChp->ptrsFp);
         if(tileGfxID == 0xFFFFFFFF) {FSMOD_ERRBUF_REVERT(*errbufpp); return 0;} // end of tile list
 
-        // check if the current iteration is in new tile gfx block
-        if(packp->bmp_index[0] != iterVecp->v[0]){
-            packp->bmp_index[0] = iterVecp->v[0];
-            packp->bmp_index[1] = 0;
-        }
     // tile animation frame
     } else {
         tileGfxID = ivars[0];
 
-        // use bmp_index in diffrent context - check index of animation frame
-        // ???
-        if(packp->bmp_index[0] != iterVecp->v[1]){
-            packp->bmp_index[0] = iterVecp->v[1];
-            packp->bmp_index[1] = 1;
+        if(packp->lastAnimGfxId != iterVecp->v[1]){
+            packp->lastAnimGfxId = iterVecp->v[1];
+            packp->lastAnimFrameI = 1;
         }
-        tileAnimFrameI = packp->bmp_index[1]++;
+        tileAnimFrameI = packp->lastAnimFrameI++;
     }
 
     // gfx header read
@@ -147,16 +143,16 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         bitmap = mapped_ptr;
     else {
         u32 offsetIndex = 0;
-        if(packp->tileBmpsOffsetsVecp[0].size <= packp->bmp_index[0])
+        if(packp->tileBmpsOffsetsVecp[0].size <= blockIndex || blockIndex >= 32)
             longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
          
-        offsetIndex = packp->tileBmpsOffsetsVecp[0].v[packp->bmp_index[0]] + packp->bmp_index[1];
+        offsetIndex = packp->tileBmpsOffsetsVecp[0].v[iterVecp->v[0]] + packp->bmp_index[blockIndex];
         if(packp->tileBmpsOffsetsVecp[1].size <= offsetIndex)
             longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
 
         // new bitmap read
         fseek(tileChp->dataFp, packp->tileBmpsOffsetsVecp[1].v[offsetIndex] + 4 /* bmp size skip */, SEEK_SET);
-        packp->bmp_index[1]++;
+        packp->bmp_index[blockIndex]++;
         
         if(!(bitmap = malloc(required_size))) exit(0xbeef); // freed in gexdev_ptr_map_close_all
         fsmod_fread(bitmap, 1, required_size, tileChp->dataFp, *errbufpp); 
