@@ -61,17 +61,23 @@ int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]){
     if(fileChunksCount >= 5 && fileChunksCount <= 32){
         //FILE TYPE: STANDARD LEVEL
 
-        // Tiles chunk setup
+        // Tile bitmaps chunk setup
         fseek(fp, 0x28, SEEK_SET); 
         switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->tilesChunk)) {
             case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
-            case 1: retVal |= 2; break; // invalid / non-exsiting chunk
+            case 1: retVal |= FSMOD_LEVEL_FLAG_NO_TILES; break; // invalid / non-exsiting chunk
         }
-        // GFX chunk setup
-        fseek(fp, 0x18, SEEK_CUR);
+        // Background bitmaps chunk setup
+        fseek(fp, 8, SEEK_CUR); 
+        switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->bgChunk)) {
+            case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
+            case 1: retVal |= FSMOD_LEVEL_FLAG_NO_BACKGROUND; break; // invalid / non-exsiting chunk
+        }
+        // Main chunk setup
+        fseek(fp, 8, SEEK_CUR);
         switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->mainChunk)) {
             case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
-            case 1: retVal |= 2; break; // invalid / non-exsiting chunk
+            case 1: retVal |= FSMOD_LEVEL_FLAG_NO_MAIN; break; // invalid / non-exsiting chunk
         }
     }
     else {

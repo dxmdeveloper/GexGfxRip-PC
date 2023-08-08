@@ -44,7 +44,8 @@ enum fsmod_level_type_enum {
     FSMOD_LEVEL_TYPE_STANDARD       = 0,
     FSMOD_LEVEL_TYPE_GFX_ONLY       = 1,
     FSMOD_LEVEL_FLAG_NO_TILES  = 1 << 1,
-    FSMOD_LEVEL_FLAG_NO_GFX    = 1 << 2,
+    FSMOD_LEVEL_FLAG_NO_MAIN   = 1 << 2,
+    FSMOD_LEVEL_FLAG_NO_BACKGROUND = 1 << 3,
 };
 
 enum fsmod_errno_enum {
@@ -69,8 +70,9 @@ typedef struct fsmod_file_chunk_structure {
 
 struct fsmod_files {
     fsmod_file_chunk tilesChunk;
+    fsmod_file_chunk bgChunk;
     fsmod_file_chunk mainChunk;
-
+    
     jmp_buf* error_jmp_buf;
 };
 

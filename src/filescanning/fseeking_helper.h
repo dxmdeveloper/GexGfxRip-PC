@@ -27,7 +27,7 @@ int fsmod_follow_pattern(fsmod_file_chunk fileChunk[1], const char pattern[], jm
   * p - push offset     - push current ptrsFp offset on stack;
   * b - back to offset  - pops offset from stack and set ptrsFp to it;
   * c - call callback   - calls callback passed as param cb. Ignores it's return value;
-  * C - call callback until it returns non-zero value;
+  * C - call callback, break on non-zero return value.
   * d - dataFp goto     - resolves gexptr ptrsFp and sets dataFp to the resolved offset;
   * D - the same as d but can break ;] loop
   * G{} - go into and back - equivalent of pg|some instructions|b+4. Can break ;] loop.

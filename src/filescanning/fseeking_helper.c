@@ -48,6 +48,19 @@ static inline char * str_rewrite_without_whitespaces(char * dest, const char * s
     return dest;
 }
 
+/** @brief breaks infinite loop in next switch iteration if pcur is in such loop
+  * @return EXIT_SUCCESS (break switch) or EXIT_FAILURE  */
+static inline int _fsmod_follow_pattern_break_infinite_loop(const char ** pcurp, Stack32* loopstackp){
+    const char* loopend = NULL;
+    if((loopend = strFindScopeEndFromInside(*pcurp, '[', ';')) && loopend[1] == ']'){
+        // break ;] loop
+        loopstackp->stack[loopstackp->sp-1] = 1;
+        *pcurp = loopend - 1;
+        return EXIT_SUCCESS;
+    }
+    return EXIT_FAILURE;
+}
+
 /// @return EXIT_SUCCESS or EXIT_FAIULRE
 static inline int _fsmod_follow_pattern_read(const char ** pcurp, FILE * fp, u32 *ivars, jmp_buf * error_jmp_buf){
     #define DESTTYPE_FILE 0
@@ -229,7 +242,8 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 // LOOP START
                 Stack32_push(&loopStack, (u32)(pcur - procpatternp)); // save pcur position
                 Stack32_push(&loopStack, 0); // new iteration
-                gexdev_u32vec_ascounter_inc(&iterVec, loopStack.sp / 2 - 1);
+                if(iterVec.size < loopStack.sp / 2)
+                    gexdev_u32vec_ascounter_inc(&iterVec, loopStack.sp / 2 - 1);
             } break;
             case ';':{
                 // LOOP BODY END
@@ -241,7 +255,7 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 }
                 else {
                     int repeats = atoi(pcur+1);
-                    if(popedIteration >= repeats) break;
+                    if(popedIteration + 1 >= repeats) break;
                 }
                 // if the loop isn't over
                 pcur = procpatternp + popedPcurPos;
@@ -253,9 +267,7 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 pcur+=1; // skip the '{'
                 u32 offset = fsmod_read_infile_ptr(fch->ptrsFp, fch->offset, *errbufpp);
                 if(!offset){
-                    if(strFindScopeEndFromInside(pcur, '[', ';')[1] == ']'){
-                        loopStack.stack[loopStack.sp-1] = 1;
-                    }
+                    if(!_fsmod_follow_pattern_break_infinite_loop(&pcur, &loopStack)) break;
                     pcur = strFindScopeEnd(pcur, '}');
                     break;
                 }
@@ -273,8 +285,11 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
                 cbCalls++;
             } break;
             case 'C':{
-                while(cb(fch, &iterVec, internalVars, pass2cb)) cbCalls++;
-            }break;
+                cbCalls++;
+                if(!cb(fch, &iterVec, internalVars, pass2cb)){
+                    _fsmod_follow_pattern_break_infinite_loop(&pcur, &loopStack);
+                }
+            } break;
             case 'p':{
                 Stack32_push(&loopStack, (u32)ftell(fch->ptrsFp));
             } break;
@@ -293,12 +308,8 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
             } break;
             case 'D':{
                 u32 offset = fsmod_read_infile_ptr(fch->ptrsFp, fch->offset, *errbufpp);
-                const char * scopeEnd = NULL;
                 if(!offset){
-                    if((scopeEnd = strFindScopeEndFromInside(pcur, '[', ';'))[1] == ']'){
-                        loopStack.stack[loopStack.sp-1] = 1;
-                        pcur = scopeEnd-1;
-                    }
+                    _fsmod_follow_pattern_break_infinite_loop(&pcur, &loopStack);
                     break;
                 }
                 fseek(fch->dataFp, offset, SEEK_SET);
