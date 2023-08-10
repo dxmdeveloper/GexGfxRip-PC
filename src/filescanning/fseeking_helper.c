@@ -266,7 +266,7 @@ size_t fsmod_follow_pattern_recur(fsmod_file_chunk * fch, const char pattern[], 
             case 'G':{
                 pcur+=1; // skip the '{'
                 u32 offset = fsmod_read_infile_ptr(fch->ptrsFp, fch->offset, *errbufpp);
-                if(!offset){
+                if(!offset || offset >= fch->size + fch->offset){
                     if(!_fsmod_follow_pattern_break_infinite_loop(&pcur, &loopStack)) break;
                     pcur = strFindScopeEnd(pcur, '}');
                     break;

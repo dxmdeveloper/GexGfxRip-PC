@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <setjmp.h>
 #include "filescanning_tiles.h"
+#include "filescanning_obj_gfx.h"
 #include "../graphics/gfx.h"
 #include "../essentials/vector.h"
 #include "../essentials/stack.h"
@@ -23,14 +24,6 @@
     }
 
 #define FSMOD_ERRBUF_REVERT(bufp) bufp = prev_error_jump_bufforp
-
-
-/// @brief function scanning memory for u32 value
-/// @param endPtr end of the scanning range. The offset is excluded from the scan.
-/// @param ORMask logical OR mask. 0 by default
-/// @param matchVal searched value.
-/// @return offset of found value. null if not found.
-uintptr_t findU32(void *startPtr, void *endPtr, uint32_t ORMask, uint32_t matchVal);
 
 
 /// TODO: insert these to the functions

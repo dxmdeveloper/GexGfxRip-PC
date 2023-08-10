@@ -154,7 +154,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
     // CALLING ONFOUND CALLBACK
     packp->dest_cb(packp->pass2cb, bitmap, header, &pal, (u16)tileGfxID, tileAnimFrameI);
 
-    // omit 4 bytes (I don't know what it is)
+    // omit 4 bytes (some flags, but only semi transparency affects tile graphics as far as I know)
     fseek(mainChp->ptrsFp, 4, SEEK_CUR);
 
     // cleanup
