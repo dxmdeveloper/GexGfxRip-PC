@@ -60,6 +60,7 @@ src = [
   'src/graphics/gfx.c',
   'src/filescanning/filescanning.c',
   'src/filescanning/filescanning_tiles.c',
+  'src/filescanning/filescanning_obj_gfx.c',
   'src/filescanning/fseeking_helper.c',
   'src/essentials/ptr_map.c',
   'src/essentials/vector.c',

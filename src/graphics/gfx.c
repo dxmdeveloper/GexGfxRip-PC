@@ -128,6 +128,7 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     }
     if(bpp >= 8) return (size_t)(width * height * (bpp/8) );
     u32 modulo = width * height % (8/bpp);
+    // we add 4 if header and bitmap are separate
     return (size_t)(width * height / (8/bpp) + modulo); 
 }
 
@@ -185,7 +186,7 @@ size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest){
         if(!gex_gfxChunk_parsef(gfxHeadersFile, &chunk)) return 0;
         headersSize += 8;
     }
-    if(header.typeSignature | 1){
+    if(header.typeSignature & 1){
         if(!fread(&opMapSize, 1, 1, gfxHeadersFile)) return 0;
         headersSize += 1 + opMapSize;
     }
@@ -264,10 +265,11 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], uint8_t
     }
     
     chunk = gex_gfxChunk_parseAOB(chunkHeaders);
+    uint bitmap_offset = chunk.startOffset; // This works different than the game engine
 
     //foreach chunk
     while(chunk.startOffset > 0){
-        const u8 *dataPtr = bitmapIDat;
+        const u8 *dataPtr = bitmapIDat + chunk.startOffset - bitmap_offset;
 
         
         if(chunk.startOffset > (width*height) / (8/bpp)){

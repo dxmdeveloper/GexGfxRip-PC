@@ -121,7 +121,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
         return 1;
     }
 
-    size_t required_size = gfx_checkSizeOfBitmap(header);
+    size_t required_size = gfx_checkSizeOfBitmap(header); 
 
     // read next bitmap if is not already read. Otherwise don't increase bmp_index
     u32 rel_header_offset = headerOffset - mainChp->offset; //< for smaller ptr map size
@@ -139,7 +139,7 @@ static int fsmod_prep_tile_gfx_data_and_exec_cb(fsmod_file_chunk * fChunkp, gexd
             longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
 
         // new bitmap read
-        fseek(tileChp->dataFp, packp->tileBmpsOffsetsVecp[1].v[offsetIndex] + 4 /* bmp size skip */, SEEK_SET);
+        fseek(tileChp->dataFp, packp->tileBmpsOffsetsVecp[1].v[offsetIndex] + 4 /*bmp size skip*/, SEEK_SET);
         packp->bmp_index[blockIndex]++;
         
         if(!(bitmap = malloc(required_size))) exit(0xbeef); // freed in gexdev_ptr_map_close_all

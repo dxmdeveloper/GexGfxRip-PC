@@ -35,7 +35,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
     gex_gfxHeader_parsef(mainChp->dataFp, &gfxHeader);
     // BITMAP IN OTHER FILE CHUNK
     // TODO: DUMP IT TOO
-    if((gfxHeader.typeSignature & 0x000000F0) == 0xC0) return 1;
+    if((gfxHeader.typeSignature & 0xF0) == 0xC0) return 1;
     fseek(mainChp->dataFp, headerOffset, SEEK_SET);
 
     if(!gex_gfxHeadersFToAOB(mainChp->dataFp, &headerData)){
@@ -43,7 +43,9 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
     }
     // bitmap read
     bitmapSize = gfx_checkSizeOfBitmap(headerData);
-    if(fread(bitmap, bitmapSize, 1, mainChp->dataFp) < bitmapSize)
+    bitmap = malloc(bitmapSize);
+    //printf("%lX\n", ftell(mainChp->dataFp));
+    if(fread(bitmap,1, bitmapSize, mainChp->dataFp) < bitmapSize)
         longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);
 
     // palette parse
