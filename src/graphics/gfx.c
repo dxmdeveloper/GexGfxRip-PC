@@ -272,7 +272,7 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], uint8_t
         const u8 *dataPtr = bitmapIDat + chunk.startOffset - bitmap_offset;
 
         
-        if(chunk.startOffset > (width*height) / (8/bpp)){
+        if(chunk.startOffset - bitmap_offset > (width*height) / (8/bpp)){
             //Invalid graphic / misrecognized data
             free(image);
             return NULL;
@@ -324,7 +324,7 @@ void **gfx_drawGexBitmap16bpp(const void * chunkHeaders, const void * bitmapDat,
     return image;
 }
 
-
+// TODO: REWRITE
 u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], uint8_t bpp, u32 minWidth, u32 minHeight){
     u8 **image = NULL;
     const u8 *operationMapPtr = NULL;

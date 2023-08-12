@@ -63,6 +63,7 @@ typedef struct fsmod_file_chunk_structure {
 
 struct fsmod_files {
     fsmod_file_chunk tilesChunk;
+    fsmod_file_chunk bitmapChunk;
     fsmod_file_chunk bgChunk;
     fsmod_file_chunk mainChunk;
     

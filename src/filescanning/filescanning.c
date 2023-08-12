@@ -67,9 +67,9 @@ int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]){
             case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
             case 1: retVal |= FSMOD_LEVEL_FLAG_NO_TILES; break; // invalid / non-exsiting chunk
         }
-        // Background bitmaps chunk setup
+        // Chunk with bitmaps (of backgrounds and objects) setup
         fseek(fp, 8, SEEK_CUR); 
-        switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->bgChunk)) {
+        switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->bitmapChunk)) {
             case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
             case 1: retVal |= FSMOD_LEVEL_FLAG_NO_BACKGROUND; break; // invalid / non-exsiting chunk
         }
@@ -78,6 +78,12 @@ int fsmod_files_init(struct fsmod_files * filesStp, const char filename[]){
         switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->mainChunk)) {
             case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
             case 1: retVal |= FSMOD_LEVEL_FLAG_NO_MAIN; break; // invalid / non-exsiting chunk
+        }
+        // Background chunk setup
+        fseek(fp, 8, SEEK_CUR); 
+        switch(_fsmod_files_init_open_and_set(filename, fp, fileSize, &filesStp->bgChunk)) {
+            case -1: fclose(fp); return FSMOD_LEVEL_TYPE_FOPEN_ERROR;
+            case 1: retVal |= FSMOD_LEVEL_FLAG_NO_BACKGROUND; break; // invalid / non-exsiting chunk
         }
     }
     else {

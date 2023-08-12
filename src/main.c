@@ -67,8 +67,10 @@ int main(int argc, char *argv[]) {
             // output directory name
             sprintf(odirname, "%s-rip/", argv[argc-1]);
             options.savePath = odirname;
+            /*
             if(fsmodFilesSt.tilesChunk.ptrsFp && fsmodFilesSt.mainChunk.ptrsFp)
                 fsmod_tiles_scan(&fsmodFilesSt, &options, cb_onTileFound);
+                */
             if(fsmodFilesSt.mainChunk.ptrsFp)
                 fsmod_obj_gfx_scan(&fsmodFilesSt, &options, cb_onObjGfxFound);
             fsmod_files_close(&fsmodFilesSt);
