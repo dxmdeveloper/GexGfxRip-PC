@@ -84,7 +84,6 @@ struct gex_gfxChunk gex_gfxChunk_parseAOB(const uint8_t aob[8]);
 struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * dest);
 
 
-
 /** @brief creates palette from gex palette format.
  * gex palette format starts with (LE) 00 XX FF FF for 16 colors or 01 XX FF FF for 256 colors
  * @return struct gfx_palette. Object will have 0 colors if the gexPalette has invalid format */

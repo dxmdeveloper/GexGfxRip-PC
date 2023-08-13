@@ -116,6 +116,7 @@ struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * de
 
 }
 
+// TODO: VERSION FOR SPRITES
 size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 width = 0;
     u32 height = 0;
@@ -270,7 +271,6 @@ u8 **gfx_drawGexBitmap(const void * chunkHeaders, const u8 bitmapIDat[], uint8_t
     //foreach chunk
     while(chunk.startOffset > 0){
         const u8 *dataPtr = bitmapIDat + chunk.startOffset - bitmap_offset;
-
         
         if(chunk.startOffset - bitmap_offset > (width*height) / (8/bpp)){
             //Invalid graphic / misrecognized data

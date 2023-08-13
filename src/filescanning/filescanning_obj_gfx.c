@@ -3,6 +3,7 @@
 #include "fseeking_helper.h"
 #include "../helpers/basicdefs.h"
 #include "../essentials/ptr_map.h"
+#include "../helpers/binary_parse.h"
 
 struct obj_gfx_scan_pack {
     struct fsmod_files * filesStp;
@@ -36,6 +37,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
     struct gfx_palette pal = {0};
     bool extbmp = false;
     jmp_buf ** errbufpp = &packp->filesStp->error_jmp_buf;
+    u32 * bmp_indexp = &packp->ext_bmp_index; // TO BE MOVED TO FILESSTP
 
     // error handling
     FSMOD_ERRBUF_CHAIN_ADD(*errbufpp,
@@ -67,27 +69,53 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
         void * mapped_bmp = NULL;
         u32 rel_header_offset = headerOffset - mainChp->offset;
         
+        // TODO: CREATE SEPARATE FUNCTION
         if((mapped_bmp = gexdev_ptr_map_get(packp->bmp_headers_binds_mapp, &rel_header_offset))){
             bitmap = mapped_bmp; // reuse bitmap
         } else {
-            u32 bmp_offset = packp->ext_bmp_index;
-            if(packp->ext_bmp_offsetsp->size <= bmp_offset) 
-                longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
-
-            fseek(bmpChp->dataFp, packp->ext_bmp_offsetsp->v[bmp_offset] + 4/*bmp size skip*/, SEEK_SET );
-
+            size_t written_bmp_bytes = 0;
             bitmapSize = gfx_checkSizeOfBitmap(headerData);
-            bitmap = malloc(bitmapSize);
-            if(fread(bitmap,1, bitmapSize, bmpChp->dataFp) < bitmapSize)
-                longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);
-            
+            bitmap = calloc(bitmapSize,1);
+            for(void * gchunk = headerData+20; *(u32*)gchunk; gchunk += 8){
+                size_t bitmap_part_size = 0;
+                u16 gchunkOffset = written_bmp_bytes + 36;
+                u16 sizes[2] = {0};
+
+                if(packp->ext_bmp_offsetsp->size <= *bmp_indexp) 
+                    longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
+
+                // bitmap sizes check
+                fseek(bmpChp->dataFp, packp->ext_bmp_offsetsp->v[*bmp_indexp], SEEK_SET);
+                if(fread_LE_U16(sizes, 2, bmpChp->dataFp) != 2)
+                    longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);
+
+                bitmap_part_size = sizes[0] * sizes[1] * 2;
+
+                if(written_bmp_bytes + bitmap_part_size > bitmapSize) 
+                    longjmp(**errbufpp, FSMOD_ERROR_INDEX_OUT_OF_RANGE);
+
+                // read bitmap
+                if(fread(bitmap + written_bmp_bytes,1, bitmap_part_size, bmpChp->dataFp) < bitmap_part_size)
+                    longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);
+
+                // overwrite chunk data start offset
+                aob_read_LE_U16(&gchunkOffset);
+                *(u16*)gchunk = gchunkOffset;
+
+                written_bmp_bytes += bitmap_part_size;
+                (*bmp_indexp)++;
+            }
             gexdev_ptr_map_set(packp->bmp_headers_binds_mapp, &rel_header_offset, bitmap);
-            packp->ext_bmp_index++;
         }
     } else {
     // bitmap located right after headers
         bitmapSize = gfx_checkSizeOfBitmap(headerData);
         bitmap = malloc(bitmapSize);
+
+        if(iterVecp->v[0] == 5){
+            printf("%lX", ftell(mainChp->dataFp));                
+        }
+
 
         if(fread(bitmap,1, bitmapSize, mainChp->dataFp) < bitmapSize)
             longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);
