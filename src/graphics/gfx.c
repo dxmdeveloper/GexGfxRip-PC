@@ -116,7 +116,6 @@ struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * de
 
 }
 
-// TODO: VERSION FOR SPRITES
 size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 width = 0;
     u32 height = 0;
@@ -131,6 +130,32 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     u32 modulo = width * height % (8/bpp);
     // we add 4 if header and bitmap are separate
     return (size_t)(width * height / (8/bpp) + modulo); 
+}
+
+size_t gfx_checkSizeOfSprite(const void * gfxHeadersAndOpMap){
+    struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeadersAndOpMap);
+    struct gex_gfxChunk gchunk = gex_gfxChunk_parseAOB(gfxHeadersAndOpMap+20);
+    u8 bpp = gex_gfxHeaderType_getBpp(header.typeSignature);
+    const u8 * opmap = NULL;
+    size_t chunkCnt = 0;
+    size_t bytes = 0;
+    u32 opmapSize = 0;
+    
+
+    while(gchunk.startOffset){
+        chunkCnt++;
+        gchunk = gex_gfxChunk_parseAOB(gfxHeadersAndOpMap+20+chunkCnt*8);   
+    }
+
+    opmap = gfxHeadersAndOpMap+20+(chunkCnt+1)*8+4;
+    opmapSize = aob_read_LE_U32(opmap-4);
+    
+    for(u32 i = 0; i < opmapSize; i++){
+        if(opmap[i] < 0x80) bytes += (opmap[i] == 0 ? 128 * bpp  : opmap[i] * 32 / bpp);
+        else bytes += bpp / 2;
+    }
+
+    return bytes;
 }
 
 // TODO: reimplementation of below functions (done?)
