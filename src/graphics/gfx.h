@@ -93,16 +93,22 @@ struct gfx_palette gfx_createPalette(void *gexPalette);
 /** @brief converts rgb555 with swapped red and blue channels to rgb 8bpp */
 png_color bgr555toRgb888(uint16_t bgr555);
 
-
-/** @param gfxHeader array with minimum SIZE of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
+// TODO: FUNCTIONS BELOW DOES NOT CHECK MAX SIZE OF IMG
+/** @brief calcuates real size of bitmap (not sprite) from gfx headers
+ *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
  *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
 size_t gfx_checkSizeOfBitmap(const void * gfxHeaders);
+
+/** @brief calcuates real size of sprite from gfx headers
+ *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
+ *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
+size_t gfx_checkSizeOfSprite(const void * gfxHeadersAndOpMap);
 
 
 //// /** @return size of graphic headers and bitmap data. */
 //// size_t gfx_checkTotalSizeOfGfx(void * gfxHeaders);
 
-/** @brief reads graphic headers from FILE into the dest array
+/** @brief reads graphic headers from FILE into the dest array. Changes position of file pointer
  *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function!
  *  @return size of dest array in bytes. 0 if headers are invalid. */
 size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest);

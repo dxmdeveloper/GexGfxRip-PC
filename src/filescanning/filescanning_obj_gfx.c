@@ -37,7 +37,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
     struct gfx_palette pal = {0};
     bool extbmp = false;
     jmp_buf ** errbufpp = &packp->filesStp->error_jmp_buf;
-    u32 * bmp_indexp = &packp->ext_bmp_index; // TO BE MOVED TO FILESSTP
+    u32 * bmp_indexp = &packp->ext_bmp_index; //! TO BE MOVED TO FILESSTP
 
     // error handling
     FSMOD_ERRBUF_CHAIN_ADD(*errbufpp,
@@ -45,6 +45,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
         if(headerData) free(headerData);
         if(bitmap) free(bitmap);
     );
+
 
     u32 headerOffset = fsmod_read_infile_ptr(mainChp->ptrsFp, mainChp->offset, *errbufpp);
     u32 paletteOffset = fsmod_read_infile_ptr(mainChp->ptrsFp, mainChp->offset, *errbufpp);
@@ -64,6 +65,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
         return 1;
     }
 
+
     if(extbmp){
     // bitmap in bitmap file chunk
         void * mapped_bmp = NULL;
@@ -74,7 +76,7 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
             bitmap = mapped_bmp; // reuse bitmap
         } else {
             size_t written_bmp_bytes = 0;
-            bitmapSize = gfx_checkSizeOfBitmap(headerData);
+            bitmapSize = gfxHeader.typeSignature & 4 ? gfx_checkSizeOfSprite(headerData): gfx_checkSizeOfBitmap(headerData);
             bitmap = calloc(bitmapSize,1);
             for(void * gchunk = headerData+20; *(u32*)gchunk; gchunk += 8){
                 size_t bitmap_part_size = 0;
@@ -109,13 +111,8 @@ static int _fsmod_prep_obj_gfx_and_exec_cb(fsmod_file_chunk fChunk[1], gexdev_u3
         }
     } else {
     // bitmap located right after headers
-        bitmapSize = gfx_checkSizeOfBitmap(headerData);
+        bitmapSize = gfxHeader.typeSignature & 4 ? gfx_checkSizeOfSprite(headerData): gfx_checkSizeOfBitmap(headerData);
         bitmap = malloc(bitmapSize);
-
-        if(iterVecp->v[0] == 5){
-            printf("%lX", ftell(mainChp->dataFp));                
-        }
-
 
         if(fread(bitmap,1, bitmapSize, mainChp->dataFp) < bitmapSize)
             longjmp(**errbufpp, FSMOD_READ_ERROR_FREAD);

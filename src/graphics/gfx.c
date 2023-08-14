@@ -9,7 +9,7 @@
 
 //* STATIC DECLARATIONS:
 //
-static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, u8 bpp);
+static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pixInChunkI, u8 pixVal, u8 bpp);
 void **calloc2D(u32 y, u32 x, u8 sizeOfElement);
 void **malloc2D(u32 y, u32 x, u8 sizeOfElement);
 png_color bgr555toRgb888(u16 bgr555);
@@ -132,6 +132,7 @@ size_t gfx_checkSizeOfBitmap(const void * gfxHeaders){
     return (size_t)(width * height / (8/bpp) + modulo); 
 }
 
+// TODO : TEST AND FIXES
 size_t gfx_checkSizeOfSprite(const void * gfxHeadersAndOpMap){
     struct gex_gfxHeader header = gex_gfxHeader_parseAOB(gfxHeadersAndOpMap);
     struct gex_gfxChunk gchunk = gex_gfxChunk_parseAOB(gfxHeadersAndOpMap+20);
@@ -149,9 +150,10 @@ size_t gfx_checkSizeOfSprite(const void * gfxHeadersAndOpMap){
 
     opmap = gfxHeadersAndOpMap+20+(chunkCnt+1)*8+4;
     opmapSize = aob_read_LE_U32(opmap-4);
+    if(opmapSize == 0) return 0;
     
-    for(u32 i = 0; i < opmapSize; i++){
-        if(opmap[i] < 0x80) bytes += (opmap[i] == 0 ? 128 * bpp  : opmap[i] * 32 / bpp);
+    for(u32 i = 0; i < opmapSize - 4; i++){
+        if(opmap[i] < 0x80) bytes += (opmap[i] == 0 ? 4096 / bpp  : opmap[i] * 32 / bpp);
         else bytes += bpp / 2;
     }
 
@@ -199,11 +201,13 @@ size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest){
     struct gex_gfxChunk chunk = {0};
     u8 * headersBuffor = NULL;
     size_t headersSize = 28;
-    u16 opMapSize = 0;
+    u32 opMapSize = 0;
     uptr filePositionSave = ftell(gfxHeadersFile);
     
+
     //gfxHeader parse
     if(!gex_gfxHeader_parsef(gfxHeadersFile, &header)) return 0;
+    if(header._structPadding) return 0;
 
     //gfxChunks parse
     if(!gex_gfxChunk_parsef(gfxHeadersFile, &chunk)) return 0;
@@ -212,10 +216,15 @@ size_t gex_gfxHeadersFToAOB(FILE * gfxHeadersFile, void ** dest){
         if(!gex_gfxChunk_parsef(gfxHeadersFile, &chunk)) return 0;
         headersSize += 8;
     }
-    if(header.typeSignature & 1){
-        if(!fread(&opMapSize, 1, 1, gfxHeadersFile)) return 0;
-        headersSize += 1 + opMapSize;
+
+    if(headersSize > 28 + IMG_CHUNKS_LIMIT * 8) return 0;
+
+    if(header.typeSignature & 4){
+        if(!fread_LE_U32(&opMapSize, 1, gfxHeadersFile)) return 0;
+        headersSize += opMapSize;
     }
+    
+    if(opMapSize > 0xFFFF /*?*/) return 0;
 
     // file position restore and read all into the headersBuffor
     fseek(gfxHeadersFile, filePositionSave, SEEK_SET);
@@ -349,106 +358,82 @@ void **gfx_drawGexBitmap16bpp(const void * chunkHeaders, const void * bitmapDat,
     return image;
 }
 
-// TODO: REWRITE
-u8 **gfx_drawSprite(const void *chunksHeadersAndOpMap, const u8 bitmapIDat[], uint8_t bpp, u32 minWidth, u32 minHeight){
+// TODO CONSIDER GFX HEADER ARG INSTEAD OF chunksAndOpMap AND bpp
+u8 **gfx_drawSprite(const void *chunksAndOpmap, const u8 * bmp, u8 bpp, u32 minWidth, u32 minHeight){
     u8 **image = NULL;
-    const u8 *operationMapPtr = NULL;
-    const u8 *bitmapBasePtr = NULL;
-    u32 operationMapLen = 0;
-    u32 bitmap_i = 0;
-    u16 omap_i = 0;
-
-    u32 width = 0;
-    u32 height = 0;
+    u32 width = 0, height = 0;
+    const u8 * opmapp = NULL;
+    u32 opmapSize = 0;
+    uint pixI = 0, pixInChunkI = 0;
+    uint chunkIndex = 0;
     struct gex_gfxChunk chunk = {0};
-
-    if(!chunksHeadersAndOpMap || !bitmapIDat) return NULL;
-    bitmapBasePtr = bitmapIDat;
-
+    
     if(minWidth > IMG_MAX_WIDTH || minHeight > IMG_MAX_HEIGHT){
-        fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawSprite)\n");
+        fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawGexBitmap)\n");
         return NULL;
     }
-    
-    if(gfx_calcRealWidthAndHeight(&width, &height, chunksHeadersAndOpMap)){
+
+    if(gfx_calcRealWidthAndHeight(&width, &height, chunksAndOpmap)){
         return NULL;
     }
     
     if(width < minWidth) width = minWidth;
     if(height < minHeight) height = minHeight;
-    
+
     // malloc image with valid size
-    image = (u8**)calloc2D(height, width, sizeof(u8));
+    image = (u8**) calloc2D(height, width, sizeof(u8));
     if(image==NULL){
         fprintf(stderr, "Out Of Memory!\n");
         return NULL;
     }
     
-    // operation map length assignment
+    // opmap size and pointer
     {
-        struct gex_gfxChunk firstChunk = {0};
-
-        operationMapPtr = chunksHeadersAndOpMap;
-        chunk = gex_gfxChunk_parseAOB(operationMapPtr);
-        firstChunk = chunk;
-        while(chunk.startOffset) {
-            operationMapPtr += 8;
-            chunk = gex_gfxChunk_parseAOB(operationMapPtr);
-        };
-        operationMapLen = *(u32*)(operationMapPtr+8);
-        operationMapPtr += 9; 
+        struct gex_gfxChunk firstChunk = gex_gfxChunk_parseAOB(chunksAndOpmap);
+        chunk = firstChunk;
+        while(chunk.startOffset){
+            chunkIndex++;
+            chunk = gex_gfxChunk_parseAOB(chunksAndOpmap+chunkIndex*8);
+        }
+        opmapp = chunksAndOpmap+chunkIndex*8 + 12;
+        opmapSize = aob_read_LE_U32(opmapp-4) - 4;
 
         chunk = firstChunk;
+        chunkIndex = 0;
     }
 
-    u32 cpix_i = 0; //< chunk pixel iter
+    uint bitmap_offset = chunk.startOffset; // This works different than the game engine
 
-    // Proccess Data.
-    while(omap_i < operationMapLen){
+    for(size_t m = 0; m < opmapSize; m++){
+        uint optype = 0; // 0 - just draw pixels from bitmap, 1 - take 4 bytes and draw them over and over
+        uint repeats = 0;
+        u8 opval = opmapp[m];
+        u8 pixVal = 0;
 
-        // type of operations
-        if(operationMapPtr[omap_i] < 0x80){
-            // operation: simply draw pixels from bitmap
-            u32 opCount = (operationMapPtr[omap_i] == 0 ? 128 * bpp  : operationMapPtr[omap_i] * 32 / bpp);
-
-            for(u32 op = 0; op < opCount; op++){
-                if(cpix_i >= chunk.height*chunk.width) { 
-                    //next chunk
-                    chunksHeadersAndOpMap+=8;
-                    chunk = gex_gfxChunk_parseAOB(chunksHeadersAndOpMap);
-                    if(chunk.startOffset == 0 || chunk.height*chunk.width == 0) 
-                        return image;
-                    cpix_i = 0;
-                } 
-
-                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[bitmap_i/(8/bpp)], bpp);
-                bitmap_i++;
-                cpix_i++;
-            }
+        if(opmapp[m] >= 0x80) {
+            optype = 1;
+            opval -= 0x80;
         }
-        // operation: repeat 4 pixels
-        else {
-            u32 repeats = (operationMapPtr[omap_i] == 0x80 ? bpp * 128 : (operationMapPtr[omap_i] - 0x80) * 32 / bpp);
-            for(u32 op = 0; op < repeats; op++){ 
-                if(cpix_i >= chunk.height*chunk.width) { 
-                    //next chunk
-                    chunksHeadersAndOpMap += 8;
-                    chunk = gex_gfxChunk_parseAOB(chunksHeadersAndOpMap);
-                    if(chunk.startOffset == 0 || chunk.height*chunk.width == 0) 
-                        return image;
-                    cpix_i = 0;
-                } 
-
-                chunkRelDrawPixel(image, &chunk, cpix_i, bitmapBasePtr[(bitmap_i+(op%32 / bpp))/(8/bpp)], bpp);
-                cpix_i++;
+        repeats = (opval ? opval * 32 : 4096) / bpp;
+        for(uint i = 0; i < repeats; i++){
+            // next graphic chunk
+            if(pixInChunkI >= chunk.height*chunk.width){
+                chunk = gex_gfxChunk_parseAOB(chunksAndOpmap+(++chunkIndex)*8);
+                if(chunk.height*chunk.width == 0) return image;
+                pixInChunkI = 0;
             }
-            bitmap_i+= 32 / bpp;
+            switch(optype){
+                case 0: pixVal = bmp[pixI++ / (8/bpp)]; break;
+                case 1: pixVal = bmp[(pixI + (i%32 / bpp))/(8/bpp)]; break;
+            }
+            chunkRelDrawPixel(image, &chunk, pixInChunkI, pixVal , bpp);
+            pixInChunkI++;
         }
-        omap_i++;   
+        if(optype == 1) pixI += 32 / bpp;
     }
-
     return image;
 }
+
 
 png_color bgr555toRgb888(u16 bgr555) {
     //1BBBBBGGGGGRRRRR
@@ -475,13 +460,13 @@ uint8_t gex_gfxHeaderType_getBpp(uint32_t typeSignature){
 // -----------------------------------------------------
 
 // draw pixel relative of chunk position
-static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 pix_i, u8 pixVal, u8 bpp){
-    u16 y = chunk->rel_positionY + (pix_i / chunk->width);
-    u16 x = chunk->rel_positionX + (pix_i % chunk->width);
+static void chunkRelDrawPixel(u8 **img, const struct gex_gfxChunk *chunk, u16 cpix_i, u8 pixVal, u8 bpp){
+    u16 y = chunk->rel_positionY + (cpix_i / chunk->width);
+    u16 x = chunk->rel_positionX + (cpix_i % chunk->width);
     
     if(bpp == 8) img[y][x] = pixVal;
     else {
-        u8 shift = bpp * (pix_i % (8/bpp));
+        u8 shift = bpp * (cpix_i % (8/bpp));
         u8 mask = 0xFF >> (8 - bpp);
         img[y][x] = (pixVal >> shift) & mask;
     }
@@ -513,7 +498,7 @@ bool gfx_calcRealWidthAndHeight(u32 *ref_width, u32 *ref_height, const void *fir
     chunk = gex_gfxChunk_parseAOB((u8*)firstChunk);
     while(chunk.startOffset > 0){
         if(chunk_i > IMG_CHUNKS_LIMIT){
-            fprintf(stderr, "Error: Chunks limit reached (gfx.c::checkSizeOfCanvas)\n"); 
+            fprintf(stderr, "Error: Chunks limit reached (gfx.c::gfx_calcRealWidthAndHeight)\n"); 
             return true;
         }
         // Compare min required size with current canvas borders
