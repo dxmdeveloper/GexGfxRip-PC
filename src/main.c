@@ -29,7 +29,7 @@ struct application_options {
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
-    struct fsmod_files fsmodFilesSt = {0};
+    struct fscan_files fscan_FilesSt = {0};
     struct application_options options = {0};
     char odirname[17];
     jmp_buf errbuf;
@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
 
     if((errno = setjmp(errbuf))){
         fprintf(stderr, "error while scanning file %i", errno);
-        fsmod_files_close(&fsmodFilesSt);
+        fscan_files_close(&fscan_FilesSt);
         return -1;
     }
 
@@ -57,23 +57,23 @@ int main(int argc, char *argv[]) {
             sprintf(odirname, "%s-rip/", ifilename);
             options.savePath = odirname;
             // Scan found file
-            fsmod_files_init(&fsmodFilesSt, ifilename);
-            if(fsmodFilesSt.tilesChunk.ptrsFp && fsmodFilesSt.mainChunk.ptrsFp)
-                fsmod_tiles_scan(&fsmodFilesSt, &options, cb_onTileFound);
-            fsmod_files_close(&fsmodFilesSt);
+            fscan_files_init(&fscan_FilesSt, ifilename);
+            if(fscan_FilesSt.tile_chunk.ptrs_fp && fscan_FilesSt.main_chunk.ptrs_fp)
+                fscan_tiles_scan(&fscan_FilesSt, &options, cb_onTileFound);
+            fscan_files_close(&fscan_FilesSt);
         }
     } else {
-        if(fsmod_files_init(&fsmodFilesSt, argv[argc-1]) >= 0){
+        if(fscan_files_init(&fscan_FilesSt, argv[argc-1]) >= 0){
             // output directory name
             sprintf(odirname, "%s-rip/", argv[argc-1]);
             options.savePath = odirname;
             /*
-            if(fsmodFilesSt.tilesChunk.ptrsFp && fsmodFilesSt.mainChunk.ptrsFp)
-                fsmod_tiles_scan(&fsmodFilesSt, &options, cb_onTileFound);
+            if(fscan_FilesSt.tilesChunk.ptrsFp && fscan_FilesSt.mainChunk.ptrsFp)
+                fscan_tiles_scan(&fscan_FilesSt, &options, cb_onTileFound);
                 */
-            if(fsmodFilesSt.mainChunk.ptrsFp)
-                fsmod_obj_gfx_scan(&fsmodFilesSt, &options, cb_onObjGfxFound);
-            fsmod_files_close(&fsmodFilesSt);
+            if(fscan_FilesSt.main_chunk.ptrs_fp)
+                fscan_obj_gfx_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
+            fscan_files_close(&fscan_FilesSt);
         }
     }
     return 0;     
@@ -87,7 +87,7 @@ void cb_onTileFound(void *clientp, const void *bitmap, const void *headerAndOpMa
     png_byte ** image = NULL;
     char filePath[PATH_MAX] = "\0";
     FILE * filep = NULL;
-    struct gex_gfxHeader gfxHeader = {0};
+    struct gex_gfxheader gfxHeader = {0};
     u32 realWidth = 0, realHeight = 0;
     struct application_options * appoptp = clientp;
 
@@ -106,7 +106,7 @@ void cb_onTileFound(void *clientp, const void *bitmap, const void *headerAndOpMa
         MAKEDIR(appoptp->savePath); // TODO: add more options for user
     }
 
-    gfxHeader = gex_gfxHeader_parseAOB(headerAndOpMap);
+    gfxHeader = gex_gfxheader_parse_aob(headerAndOpMap);
 
     // Exception handling 
     if(palette == NULL) {
@@ -120,7 +120,7 @@ void cb_onTileFound(void *clientp, const void *bitmap, const void *headerAndOpMa
     }
     
     // Image creation
-    image = gfx_drawImgFromRaw(headerAndOpMap, bitmap);
+    image = gfx_draw_img_from_raw(headerAndOpMap, bitmap);
     if(image == NULL) {
         dbg_errlog("DEBUG: failed to create %s", filePath);
         return;
@@ -134,7 +134,7 @@ void cb_onTileFound(void *clientp, const void *bitmap, const void *headerAndOpMa
         return;
     }
 
-    gfx_calcRealWidthAndHeight(&realWidth, &realHeight, headerAndOpMap+20);
+    gfx_calc_real_width_and_height(&realWidth, &realHeight, headerAndOpMap+20);
     gfxHeader.inf_imgWidth = MAX(gfxHeader.inf_imgWidth, realWidth);
     gfxHeader.inf_imgHeight = MAX(gfxHeader.inf_imgHeight, realHeight);
 
@@ -153,7 +153,7 @@ void cb_onObjGfxFound(void * clientp, const void *bitmap, const void *headerAndO
     png_byte ** image = NULL;
     char filePath[PATH_MAX] = "\0";
     FILE * filep = NULL;
-    struct gex_gfxHeader gfxHeader = {0};
+    struct gex_gfxheader gfxHeader = {0};
     u32 realWidth = 0, realHeight = 0;
     struct application_options * appoptp = clientp;
 
@@ -172,7 +172,7 @@ void cb_onObjGfxFound(void * clientp, const void *bitmap, const void *headerAndO
         MAKEDIR(appoptp->savePath); // TODO: add more options for user
     }
 
-    gfxHeader = gex_gfxHeader_parseAOB(headerAndOpMap);
+    gfxHeader = gex_gfxheader_parse_aob(headerAndOpMap);
 
     // Exception handling 
     if(palette == NULL) {
@@ -186,7 +186,7 @@ void cb_onObjGfxFound(void * clientp, const void *bitmap, const void *headerAndO
     }
     
     // Image creation
-    image = gfx_drawImgFromRaw(headerAndOpMap, bitmap);
+    image = gfx_draw_img_from_raw(headerAndOpMap, bitmap);
     if(image == NULL) {
         dbg_errlog("DEBUG: failed to create %s", filePath);
         return;
@@ -208,7 +208,7 @@ void cb_onObjGfxFound(void * clientp, const void *bitmap, const void *headerAndO
         return;
     }
 
-    gfx_calcRealWidthAndHeight(&realWidth, &realHeight, headerAndOpMap+20);
+    gfx_calc_real_width_and_height(&realWidth, &realHeight, headerAndOpMap+20);
     gfxHeader.inf_imgWidth = MAX(gfxHeader.inf_imgWidth, realWidth);
     gfxHeader.inf_imgHeight = MAX(gfxHeader.inf_imgHeight, realHeight);
 
