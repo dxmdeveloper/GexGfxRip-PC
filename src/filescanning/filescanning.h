@@ -102,5 +102,22 @@ void fscan_files_close(struct fscan_files * filesStp);
   * The second vector keeps offsets of tile bitmaps */
 int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk * chunkp, gexdev_u32vec * iter, uint32_t * ivars, void * clientp);
 
+/** @brief allocates memory and read header and raw bitmap.
+  * If bitmap is in bmpchunkp (the function detects it automatically)
+  * and graphic is segmentated into multiple chunks then another bitmaps are joined.
+  *
+  * @param chunkp file chunk with header (may contain bitmap as well). ptrs_fp must be set at header offset value.
+  * position of ptrs_fp will be moved by 4.
+  *
+  * @param extbmpchunkp file chunk with external bitmaps. ptrs_fp will not be moved.
+  * @param header_and_bitmapp pointer to array that is destinated to contain header data.
+  * NOTICE: If function fail pointer can be NULL.
+  * IMPORTANT: array must be freed outside this function.
+  *
+  * @param bmp_startpp pointer to pointer to bitmap in header_and_bitmapp.
+  * @return size of header_and_bitmap array. 0 means that function failed. */
+size_t fscan_read_header_and_bitmaps(fscan_file_chunk * chunkp, fscan_file_chunk * extbmpchunkp,
+                                     void ** header_and_bitmapp, void ** bmp_startpp,
+                                     uint32_t offsets[], size_t offsets_size, unsigned int *bmp_indexp);
 
 #endif
