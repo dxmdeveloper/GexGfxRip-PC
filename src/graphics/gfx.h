@@ -111,11 +111,11 @@ size_t gfx_calc_size_of_sprite(const void * gfxHeadersAndOpMap);
 /** @brief reads graphic headers from FILE into the dest array. Changes position of file pointer
  *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function!
  *  @return size of dest array in bytes. 0 if headers are invalid. */
-size_t gfx_read_headers_to_aob(FILE * gfxHeadersFile, void ** dest);
+size_t gfx_read_headers_alloc_aob(FILE * gfxHeadersFile, void ** dest);
 
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw...
- *  @param gfxHeaders pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_read_headers_to_aob if you work with FILE*
+ *  @param gfxHeaders pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_read_headers_alloc_aob if you work with FILE*
  *  @param bitmapDat pointer to actual image data. IMPORTANT: Use gfx_calc_size_of_bitmap to ensure how many bytes are needed to be read and allocated. 
  *  @return image matrix or null pointer if failed */
 uint8_t **gfx_draw_img_from_raw(const void *gfxHeaders, const uint8_t bitmapDat[]);

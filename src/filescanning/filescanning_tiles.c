@@ -114,7 +114,7 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
     if(!headerOffset){FSCAN_ERRBUF_REVERT(errbufpp); return 0;}
     fseek(mainChp->data_fp, headerOffset, SEEK_SET);
 
-    if(!gfx_read_headers_to_aob(mainChp->data_fp, &header)) /* <- mem allocated */{
+    if(!gfx_read_headers_alloc_aob(mainChp->data_fp, &header)) /* <- mem allocated */{
         // HEADER WITHOUT DIMENSIONS = SKIP BITMAP
         fseek(mainChp->ptrs_fp, 4, SEEK_CUR);
         if(header) free(header); header = NULL;

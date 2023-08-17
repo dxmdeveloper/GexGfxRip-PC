@@ -196,7 +196,7 @@ uint8_t **gfx_draw_img_from_raw(const void *gfxHeaders, const uint8_t bitmapDat[
 
 }
 
-size_t gfx_read_headers_to_aob(FILE * gfxHeadersFile, void ** dest){
+size_t gfx_read_headers_alloc_aob(FILE * gfxHeadersFile, void ** dest){
     struct gex_gfxheader header = {0};
     struct gex_gfxchunk chunk = {0};
     u8 * headersBuffor = NULL;
@@ -246,7 +246,7 @@ uint8_t **gfx_draw_img_from_rawf(FILE * gfxHeadersFile, const uint8_t * bitmapDa
 
    u8 *newBitmapDat = NULL;
 
-   if(!(gfxHeadersSize = gfx_read_headers_to_aob(gfxHeadersFile, &gfxHeadersArr))) {
+   if(!(gfxHeadersSize = gfx_read_headers_alloc_aob(gfxHeadersFile, &gfxHeadersArr))) {
        return NULL;
    }
    if(bitmapDat == NULL){
