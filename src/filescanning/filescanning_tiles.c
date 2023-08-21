@@ -9,6 +9,8 @@
 
 //  -------------- STATIC DECLARATIONS --------------
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "UnusedValue"
 struct tile_scan_cb_pack {
     struct fscan_files * filesStp;
     void * pass2cb;
@@ -16,7 +18,7 @@ struct tile_scan_cb_pack {
     gexdev_ptr_map * bmp_headers_binds_map;
     const gexdev_u32vec * tileBmpsOffsetsVecp; // array of 2 vectors
     
-    size_t bmp_index[32];
+    uint bmp_index[32];
 };
 
 /** @brief made as callback for gexdev_ptr_map to shrink size of tile header pointers table */
@@ -84,8 +86,9 @@ void fscan_tiles_scan(struct fscan_files * filesStp, void *pass2cb,
 
 static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexdev_u32vec * iterVecp, u32 * ivars, void * clientp){
     struct tile_scan_cb_pack * packp = clientp;
-    void * header = NULL;
-    void * bitmap = NULL;
+    void * headerAndBmp = NULL;
+    void * bmpPointer = NULL;
+    size_t graphicSize = 0;
     struct gfx_palette pal = {0};
     fscan_file_chunk * mainChp = &packp->filesStp->main_chunk;
     fscan_file_chunk * tileChp = &packp->filesStp->tile_chunk;
@@ -97,8 +100,8 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
     // error handling
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp,
         fprintf(stderr, "fscan_prep_tile_gfx_data_and_exec_cb fread error\n");
-        if(header) free(header);
-    );
+        if(headerAndBmp) free(headerAndBmp);
+    )
 
     tileGfxID = ivars[0];
     if(tileGfxID == 0xFFFFFFFF) {FSCAN_ERRBUF_REVERT(errbufpp); return 0;} // end of tile list
@@ -107,60 +110,25 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
         tileAnimFrameI = iterVecp->v[2] + 1;
     }
 
-    // gfx header read
-    u32 headerOffset = fscan_read_infile_ptr(mainChp->ptrs_fp, mainChp->offset, *errbufpp);
-    u32 paletteOffset = fscan_read_infile_ptr(mainChp->ptrs_fp, mainChp->offset, *errbufpp);
-
-    if(!headerOffset){FSCAN_ERRBUF_REVERT(errbufpp); return 0;}
-    fseek(mainChp->data_fp, headerOffset, SEEK_SET);
-
-    if(!gfx_read_headers_alloc_aob(mainChp->data_fp, &header)) /* <- mem allocated */{
-        // HEADER WITHOUT DIMENSIONS = SKIP BITMAP
-        fseek(mainChp->ptrs_fp, 4, SEEK_CUR);
-        if(header) free(header); header = NULL;
-        packp->bmp_index[blockIndex]++;
-        FSCAN_ERRBUF_REVERT(errbufpp);
-        return 1;
-    }
-
-    size_t required_size = gfx_calc_size_of_bitmap(header); 
-
-    // read next bitmap if is not already read. Otherwise don't increase bmp_index
-    u32 rel_header_offset = headerOffset - mainChp->offset; //< for smaller ptr map size
-    void * mapped_ptr = gexdev_ptr_map_get(packp->bmp_headers_binds_map, &rel_header_offset);
-    if(mapped_ptr)
-        // use bitmap that was already read and assigned to header offset
-        bitmap = mapped_ptr;
-    else {
-        u32 offsetIndex = 0;
-        if(packp->tileBmpsOffsetsVecp[0].size <= blockIndex || blockIndex >= 32)
-            longjmp(**errbufpp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
-         
-        offsetIndex = packp->tileBmpsOffsetsVecp[0].v[blockIndex] + packp->bmp_index[blockIndex];
-        if(packp->tileBmpsOffsetsVecp[1].size <= offsetIndex)
-            longjmp(**errbufpp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
-
-        // new bitmap read
-        fseek(tileChp->data_fp, packp->tileBmpsOffsetsVecp[1].v[offsetIndex] + 4 /*bmp size skip*/, SEEK_SET);
-        packp->bmp_index[blockIndex]++;
-        
-        if(!(bitmap = malloc(required_size))) exit(0xbeef); // freed in gexdev_ptr_map_close_all
-        fscan_fread(bitmap, 1, required_size, tileChp->data_fp, *errbufpp); 
-        gexdev_ptr_map_set(packp->bmp_headers_binds_map, &rel_header_offset, bitmap);
-    }
+    graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, tileChp, &headerAndBmp,
+                                                      &bmpPointer, &packp->tileBmpsOffsetsVecp->v[blockIndex],
+                                                      packp->tileBmpsOffsetsVecp->size, &packp->bmp_index[blockIndex],
+                                                      *errbufpp, packp->bmp_headers_binds_map);
+    if(!graphicSize) {FSCAN_ERRBUF_REVERT(errbufpp); return 1;}
 
     // palette read
+    u32 paletteOffset = fscan_read_infile_ptr(mainChp->ptrs_fp, mainChp->offset, *errbufpp);
     fseek(mainChp->data_fp, paletteOffset, SEEK_SET);
     gfx_palette_parsef(mainChp->data_fp, &pal);
 
     // CALLING ONFOUND CALLBACK
-    packp->dest_cb(packp->pass2cb, bitmap, header, &pal, (u16)tileGfxID, tileAnimFrameI);
+    packp->dest_cb(packp->pass2cb, bmpPointer, headerAndBmp, &pal, (u16)tileGfxID, tileAnimFrameI);
 
     // omit 4 bytes (some flags, but only semi transparency affects tile graphics as far as I know)
     fseek(mainChp->ptrs_fp, 4, SEEK_CUR);
 
     // cleanup
-    if(header) free(header);
+    free(headerAndBmp);
     FSCAN_ERRBUF_REVERT(errbufpp);
     return 1;
 }

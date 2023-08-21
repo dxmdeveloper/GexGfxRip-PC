@@ -81,6 +81,12 @@ int fscan_files_init(struct fscan_files * filesStp, const char filename[]){
             case -1: fclose(fp); return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
             case 1: retVal |= FSCAN_LEVEL_FLAG_NO_MAIN; break; // invalid / non-exsiting chunk
         }
+        // Intro chunk setup
+        fseek(fp, 8, SEEK_CUR);
+        switch(_fscan_files_init_open_and_set(filename, fp, fileSize, &filesStp->intro_chunk)) {
+            case -1: fclose(fp); return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
+            case 1: retVal |= FSCAN_LEVEL_FLAG_NO_BACKGROUND; break; // invalid / non-exsiting chunk
+        }
         // Background chunk setup
         fseek(fp, 8, SEEK_CUR); 
         switch(_fscan_files_init_open_and_set(filename, fp, fileSize, &filesStp->bg_chunk)) {
@@ -100,10 +106,16 @@ int fscan_files_init(struct fscan_files * filesStp, const char filename[]){
 
 
 void fscan_files_close(struct fscan_files * filesStp){
-    if(filesStp->main_chunk.ptrs_fp) {fclose(filesStp->main_chunk.ptrs_fp); filesStp->main_chunk.ptrs_fp = NULL;}
-    if(filesStp->main_chunk.data_fp) {fclose(filesStp->main_chunk.data_fp); filesStp->main_chunk.data_fp = NULL;}
-    if(filesStp->tile_chunk.ptrs_fp) {fclose(filesStp->tile_chunk.ptrs_fp); filesStp->tile_chunk.ptrs_fp = NULL;}
-    if(filesStp->tile_chunk.data_fp) {fclose(filesStp->tile_chunk.data_fp); filesStp->tile_chunk.data_fp = NULL;}
+    if(filesStp->tile_chunk.ptrs_fp)   {fclose(filesStp->tile_chunk.ptrs_fp); filesStp->tile_chunk.ptrs_fp = NULL;}
+    if(filesStp->tile_chunk.data_fp)   {fclose(filesStp->tile_chunk.data_fp); filesStp->tile_chunk.data_fp = NULL;}
+    if(filesStp->bitmap_chunk.ptrs_fp) {fclose(filesStp->bitmap_chunk.ptrs_fp); filesStp->bitmap_chunk.ptrs_fp = NULL;}
+    if(filesStp->bitmap_chunk.data_fp) {fclose(filesStp->bitmap_chunk.data_fp); filesStp->bitmap_chunk.data_fp = NULL;}
+    if(filesStp->main_chunk.ptrs_fp)   {fclose(filesStp->main_chunk.ptrs_fp); filesStp->main_chunk.ptrs_fp = NULL;}
+    if(filesStp->main_chunk.data_fp)   {fclose(filesStp->main_chunk.data_fp); filesStp->main_chunk.data_fp = NULL;}
+    if(filesStp->intro_chunk.ptrs_fp)  {fclose(filesStp->intro_chunk.ptrs_fp); filesStp->intro_chunk.ptrs_fp = NULL;}
+    if(filesStp->intro_chunk.data_fp)  {fclose(filesStp->intro_chunk.data_fp); filesStp->intro_chunk.data_fp = NULL;}
+    if(filesStp->bg_chunk.ptrs_fp)     {fclose(filesStp->bg_chunk.ptrs_fp); filesStp->bg_chunk.ptrs_fp = NULL;}
+    if(filesStp->bg_chunk.data_fp)     {fclose(filesStp->bg_chunk.data_fp); filesStp->bg_chunk.data_fp = NULL;}
     gexdev_u32vec_close(&filesStp->ext_bmp_offsets);
 }
 
@@ -149,7 +161,7 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
 
     // header read
     fseek(chunkp->data_fp, headerOffset, SEEK_SET);
-    gex_gfxheader_parsef(chunkp->data_fp, *header_and_bitmapp);
+    gex_gfxheader_parsef(chunkp->data_fp, &gfxHeader);
 
     if((gfxHeader.typeSignature & 0xF0) == 0xC0) isBmpExtern = true;
 
@@ -161,14 +173,20 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
         return 0;
     }
 
-    *bmp_startpp = *header_and_bitmapp + headerSize;
     totalBitmapSize = gfxHeader.typeSignature & 4 ? gfx_calc_size_of_sprite(*header_and_bitmapp)
                                                   : gfx_calc_size_of_bitmap(*header_and_bitmapp);
 
     if(!totalBitmapSize) { free(*header_and_bitmapp); return 0; }
     if(!(*header_and_bitmapp = realloc(*header_and_bitmapp, headerSize + totalBitmapSize))) exit(0xA4C3D);
 
+    *bmp_startpp = *header_and_bitmapp + headerSize;
+
     if(isBmpExtern){
+        if(!extbmpchunkp->ptrs_fp){
+            dbg_errlog("dbg_errlog: bitmap supposed to be in file chunk with bitmaps but there is no such chunk\n");
+            free(*header_and_bitmapp);
+            return 0;
+        }
         // bitmap in bitmap file chunk
         void * mapped_bmp = NULL;
         u32 rel_header_offset = headerOffset - chunkp->offset;
@@ -195,8 +213,8 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
 
                 bitmap_part_size = sizes[0] * sizes[1] * 2;
 
-                if(written_bmp_bytes + bitmap_part_size > totalBitmapSize)
-                    longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
+                if(written_bmp_bytes + bitmap_part_size > totalBitmapSize) 
+                   longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
 
                 // read bitmap
                 if(fread(bitmap + written_bmp_bytes,1, bitmap_part_size, extbmpchunkp->data_fp) < bitmap_part_size)
@@ -210,8 +228,8 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
                 (*bmp_indexp)++;
             }
             gexdev_ptr_map_set(header_bmp_bindsp, &rel_header_offset, bitmap);
-            memcpy(*bmp_startpp, bitmap, totalBitmapSize);
         }
+        memcpy(*bmp_startpp, bitmap, totalBitmapSize);
     } else {
         // bitmap next to the header
         if(fread(*bmp_startpp,1, totalBitmapSize, chunkp->data_fp) < totalBitmapSize)

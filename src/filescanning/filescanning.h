@@ -68,6 +68,7 @@ struct fscan_files {
     fscan_file_chunk bitmap_chunk;
     fscan_file_chunk bg_chunk;
     fscan_file_chunk main_chunk;
+    fscan_file_chunk intro_chunk;
     
     uint32_t ext_bmp_index;
     gexdev_u32vec ext_bmp_offsets;

@@ -17,7 +17,7 @@ const char * strFindScopeEnd(const char str[], char closeChar){
     return strFindScopeEndFromInside(str, openChar, closeChar);
 }
 
-/** @brief checks if str1 starts with str2. Function is case insensive.
+/** @brief checks if str1 starts with str2. Function is case insensitive.
   * @return 1 if str1 starts with str2. 0 otherwise */
 static inline int strstartswith_ci(const char * restrict str1, const char * restrict str2){
     while(*str2){
@@ -27,7 +27,7 @@ static inline int strstartswith_ci(const char * restrict str1, const char * rest
     return 1;
 }
 
-/** @brief checks if str1 starts with str2. Function is case sensive.
+/** @brief checks if str1 starts with str2. Function is case sensitive.
   * @return 1 if str1 starts with str2. 0 otherwise */
 static inline int strstartswith_cs(const char * restrict str1, const char * restrict str2){
     while(*str2){
@@ -42,7 +42,8 @@ static inline int strstartswith_cs(const char * restrict str1, const char * rest
 static inline char * str_rewrite_without_whitespaces(char * dest, const char * src, size_t n){
     char *d = dest;
     for(size_t i = 0; i < n-1 && *src; i++){
-        if(!isspace(*src)) *d++ = *src; src++;
+        if(!isspace(*src)) *d++ = *src; 
+        src++;
     }
     *d = '\0';
     return dest;
@@ -66,10 +67,27 @@ static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp,
     return EXIT_FAILURE;
 }
 
+/// @brief used when g instruction is null or invalid
+static inline void _fscan_follow_pattern_continue_to_offset_pop(const char ** pcurp, Stack32* loopstackp){
+    const char * scopeend = strFindScopeEndFromInside((*pcurp), '{', '}');
+    const char * lowlevelpopscopeend = strFindScopeEndFromInside((*pcurp), 'p', 'b');
+    const char * pcurdest = NULL;
+
+    if( scopeend && lowlevelpopscopeend ) pcurdest = MIN(scopeend, lowlevelpopscopeend);
+    else pcurdest = (scopeend ? scopeend : lowlevelpopscopeend);
+
+    for(; *pcurp != pcurdest; (*pcurp)++){
+        if(**pcurp == ';'){
+            Stack32_pop(loopstackp);
+            Stack32_pop(loopstackp);
+        }
+    }
+}
+
 /// @return EXIT_SUCCESS or EXIT_FAIULRE
 static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32 *ivars, jmp_buf * error_jmp_buf){
-    #define DESTTYPE_FILE 0
-    #define DESTTYPE_INTERNAL_VAR 1
+    #define DEST_TYPE_FILE 0
+    #define DEST_TYPE_INTERNAL_VAR 1
 
     unsigned long rcount = 0;
     char priformat[16] = "\0";
@@ -83,11 +101,11 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
     // dest param
     if(strstartswith_ci((*pcurp), "stdout")
     || strstartswith_ci((*pcurp), "print" )){
-        destType = DESTTYPE_FILE;
+        destType = DEST_TYPE_FILE;
         printf("%0lX:\n", ftell(fp));
     }
     else if(**pcurp == '$' && ivars){ 
-        destType = DESTTYPE_INTERNAL_VAR;
+        destType = DEST_TYPE_INTERNAL_VAR;
         ivarIndex = (uint) strtoul(++(*pcurp), NULL, 0);
     }
     else {(*pcurp) = expr_end; return EXIT_FAILURE;}
@@ -97,7 +115,7 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
 
     rcount = strtoul(++(*pcurp), NULL, 0);
 
-    if(destType == DESTTYPE_INTERNAL_VAR 
+    if(destType == DEST_TYPE_INTERNAL_VAR
     && rcount >= ivarIndex + INTERNAL_VAR_CNT) {(*pcurp) = expr_end; return EXIT_FAILURE;}
 
     // format param
@@ -108,7 +126,7 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
     bool isSigned = false;
 
     switch(destType){
-        case DESTTYPE_FILE: {
+        case DEST_TYPE_FILE: {
             switch(**pcurp){
                 case 'X': sprintf(priformat,"%%0%uX ", bytes*2); break;
                 case 'x': sprintf(priformat,"%%0%ux ", bytes*2); break;
@@ -120,7 +138,7 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
                 strcat(priformat, "\n"); 
         } break;
 
-        case DESTTYPE_INTERNAL_VAR: {
+        case DEST_TYPE_INTERNAL_VAR: {
             if(!strchr("XxUuIi", **pcurp)) {(*pcurp) = expr_end; return EXIT_FAILURE;}
             if(toupper(**pcurp) == 'I') isSigned = true;
         } break;
@@ -137,7 +155,7 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
 
     for(unsigned long i = 0; i < rcount; i++){
         switch(destType){
-            case DESTTYPE_FILE:
+            case DEST_TYPE_FILE:
                 switch (bytes) {
                     case 1: if(isSigned) printf(priformat, ((i8*)buf)[i]);
                             else printf(priformat, ((u8*)buf)[i]); break;
@@ -147,7 +165,7 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
                             else printf(priformat, ((u32*)buf)[i]); break;
                 } break;
 
-            case DESTTYPE_INTERNAL_VAR:
+            case DEST_TYPE_INTERNAL_VAR:
                 switch (bytes) {
                     case 1: if(isSigned) *(i32*)&ivars[ivarIndex + i] = (i32)((i8*)buf)[i];
                             else ivars[ivarIndex + i] = (u32)((u8*)buf)[i]; break;
@@ -158,13 +176,13 @@ static inline int _fscan_follow_pattern_read(const char ** pcurp, FILE * fp, u32
                 } break;
         }
     }
-    if(destType == DESTTYPE_FILE) printf("\n");
+    if(destType == DEST_TYPE_FILE) printf("\n");
     if(buf) free(buf);
     
     *pcurp = expr_end;
     return EXIT_SUCCESS;
-    #undef DESTTYPE_FILE 
-    #undef DESTTYPE_INTERNAL_VAR 
+    #undef DEST_TYPE_FILE
+    #undef DEST_TYPE_INTERNAL_VAR
 }
 
 
@@ -236,8 +254,11 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
             case 'g':{
                 //GOTO GEXPTR
                 u32 offset = fscan_read_infile_ptr(fch->ptrs_fp, fch->offset, *errbufpp);
-                if(offset)
-                    fseek(fch->ptrs_fp, offset, SEEK_SET);
+                if(offset < fch->offset + fch->size / 4096 || offset >= fch->size + fch->offset){
+                    _fscan_follow_pattern_continue_to_offset_pop(&pcur, &loopStack);
+                    break;
+                }
+                fseek(fch->ptrs_fp, offset, SEEK_SET);
             } break;
             case '+':
             case '-': {

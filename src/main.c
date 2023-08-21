@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
         for(u8 fileI = 0; fileI < 255; fileI++){
             sprintf(ifilename, "GEX%03u.LEV", fileI);
 
-            // Test file availibity
+            // Test file availability
             FILE* testFile = fopen(ifilename, "rb");
             if(testFile == NULL) continue;
             fclose(testFile);
@@ -60,6 +60,8 @@ int main(int argc, char *argv[]) {
             fscan_files_init(&fscan_FilesSt, ifilename);
             if(fscan_FilesSt.tile_chunk.ptrs_fp && fscan_FilesSt.main_chunk.ptrs_fp)
                 fscan_tiles_scan(&fscan_FilesSt, &options, cb_onTileFound);
+            if(fscan_FilesSt.main_chunk.ptrs_fp && fscan_FilesSt.intro_chunk.ptrs_fp)
+                fscan_intro_obj_gfx_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
             fscan_files_close(&fscan_FilesSt);
         }
     } else {
@@ -71,8 +73,13 @@ int main(int argc, char *argv[]) {
             if(fscan_FilesSt.tilesChunk.ptrsFp && fscan_FilesSt.mainChunk.ptrsFp)
                 fscan_tiles_scan(&fscan_FilesSt, &options, cb_onTileFound);
                 */
-            if(fscan_FilesSt.main_chunk.ptrs_fp)
-                fscan_obj_gfx_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
+            //if(fscan_FilesSt.main_chunk.ptrs_fp)
+            //    fscan_obj_gfx_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
+            //if(fscan_FilesSt.intro_chunk.ptrs_fp)
+            //    fscan_intro_obj_gfx_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
+            if(fscan_FilesSt.bg_chunk.ptrs_fp)
+                fscan_background_scan(&fscan_FilesSt, &options, cb_onObjGfxFound);
+
             fscan_files_close(&fscan_FilesSt);
         }
     }
