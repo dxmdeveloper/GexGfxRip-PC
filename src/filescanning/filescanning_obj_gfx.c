@@ -7,7 +7,7 @@
 
 // TODO: DOCS OF THE PATTERNS
 #define FSCAN_OBJ_GFX_FLW_PATTERN "e+0x20gg [G{ g [G{ [G{ +24 g [G{ +8c };]   };] };] }+4;]"
-#define FSCAN_BACKGROUND_FLW_PATTERN "eg+24[G{ +52 [G{ +4 [g;4]+24g [G{ +8c };] };] };]"
+#define FSCAN_BACKGROUND_FLW_PATTERN "eg+24[G{ +48 [G{ +4 [g;4]+24g [G{ +8c };] };] };]"
 
 struct obj_gfx_scan_pack {
     struct fscan_files * filesStp;
