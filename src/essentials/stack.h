@@ -2,19 +2,19 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef struct Stack32_struct {
+typedef struct gexdev_stack32_struct {
     size_t size;
     size_t sp;
 
     uint32_t * stack;
 
-} Stack32;
+} gexdev_stack32;
 
-void Stack32_init(Stack32 *stackp, size_t size);
-void Stack32_close(Stack32 *stackp);
+void gexdev_stack32_init(gexdev_stack32 *stackp, size_t size);
+void gexdev_stack32_close(gexdev_stack32 *stackp);
 
 /** @return EXIT_SUCCESS or EXIT_FAILURE */
-int Stack32_push(Stack32 *stackp, uint32_t val);
+int gexdev_stack32_push(gexdev_stack32 *stackp, uint32_t val);
 
 /** @return poped value. If stack pointer (sp) equals 0, function returns UINT32_MAX */
-uint32_t Stack32_pop(Stack32 *stackp);
+uint32_t gexdev_stack32_pop(gexdev_stack32 *stackp);

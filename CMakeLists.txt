@@ -20,8 +20,8 @@ add_executable(GexGfxRip_PC
         src/essentials/vector.h
         src/filescanning/filescanning.c
         src/filescanning/filescanning.h
-        src/filescanning/filescanning_obj_gfx.c
-        src/filescanning/filescanning_obj_gfx.h
+        src/filescanning/filescanning_obj_gfx_and_bg.c
+        src/filescanning/filescanning_obj_gfx_and_bg.h
         src/filescanning/filescanning_tiles.c
         src/filescanning/filescanning_tiles.h
         src/filescanning/fseeking_helper.c

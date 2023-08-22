@@ -171,26 +171,23 @@ uint8_t **gfx_draw_img_from_raw(const void *gfxHeaders, const uint8_t bitmapDat[
 
     header = gex_gfxheader_parse_aob((u8*)gfxHeaders);
     gfxHeaders += 20;
-    
-    // Setting min sizes
-    if(header.inf_imgWidth > IMG_MAX_WIDTH || header.inf_imgHeight > IMG_MAX_HEIGHT) return NULL;
+
+    //if(header.inf_imgWidth > IMG_MAX_WIDTH || header.inf_imgHeight > IMG_MAX_HEIGHT) return NULL;
 
     gfx_calc_real_width_and_height(&realWidth, &realHeight, gfxHeaders);
-    header.inf_imgWidth = MAX(header.inf_imgWidth, realWidth);
-    header.inf_imgHeight = MAX(header.inf_imgHeight, realHeight);
 
     switch (header.typeSignature & 7)
     {
         case 5:
-            return gfx_draw_sprite(gfxHeaders, bitmapDat, 8, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_draw_sprite(gfxHeaders, bitmapDat, 8, realWidth, realHeight);
         case 4:
-            return gfx_draw_sprite(gfxHeaders, bitmapDat, 4, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_draw_sprite(gfxHeaders, bitmapDat, 4, realWidth, realHeight);
         case 2:
-            return (u8**)gfx_draw_gex_bitmap_16bpp(gfxHeaders, bitmapDat, header.inf_imgWidth, header.inf_imgHeight);
+            return (u8**)gfx_draw_gex_bitmap_16bpp(gfxHeaders, bitmapDat, realWidth, realHeight);
         case 1:
-            return gfx_draw_gex_bitmap(gfxHeaders, bitmapDat, 8, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_draw_gex_bitmap(gfxHeaders, bitmapDat, 8, realWidth, realHeight);
         case 0:
-            return gfx_draw_gex_bitmap(gfxHeaders, bitmapDat, 4, header.inf_imgWidth, header.inf_imgHeight);
+            return gfx_draw_gex_bitmap(gfxHeaders, bitmapDat, 4, realWidth, realHeight);
     }
     return NULL;
 

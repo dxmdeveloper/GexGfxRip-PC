@@ -32,7 +32,7 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk fChunkp[static 
 
 
 void fscan_tiles_scan(struct fscan_files * filesStp, void *pass2cb,
-                      void cb(void * clientp, const void *bitmap, const void *headerAndOpMap,
+                      void cb(void * clientp, const void *headerAndOpMap, const void *bitmap,
                               const struct gfx_palette *palette, uint16_t tileGfxId, uint16_t tileAnimFrameI))
 {
     struct tile_scan_cb_pack cbPack = {filesStp, pass2cb, cb};
@@ -110,9 +110,15 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
         tileAnimFrameI = iterVecp->v[2] + 1;
     }
 
-    graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, tileChp, &headerAndBmp,
-                                                      &bmpPointer, &packp->tileBmpsOffsetsVecp->v[blockIndex],
-                                                      packp->tileBmpsOffsetsVecp->size, &packp->bmp_index[blockIndex],
+    if(!fscan_read_infile_ptr(mainChp->ptrs_fp, mainChp->offset, *errbufpp)){
+        FSCAN_ERRBUF_REVERT(errbufpp);
+        return 0;
+    }
+    fseek(mainChp->ptrs_fp, -4, SEEK_CUR);
+
+    graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, tileChp, &headerAndBmp, &bmpPointer,
+                                                      &packp->tileBmpsOffsetsVecp[1].v[packp->tileBmpsOffsetsVecp[0].v[blockIndex]],
+                                                      packp->tileBmpsOffsetsVecp[1].size, &packp->bmp_index[blockIndex],
                                                       *errbufpp, packp->bmp_headers_binds_map);
     if(!graphicSize) {FSCAN_ERRBUF_REVERT(errbufpp); return 1;}
 
@@ -122,7 +128,7 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
     gfx_palette_parsef(mainChp->data_fp, &pal);
 
     // CALLING ONFOUND CALLBACK
-    packp->dest_cb(packp->pass2cb, bmpPointer, headerAndBmp, &pal, (u16)tileGfxID, tileAnimFrameI);
+    packp->dest_cb(packp->pass2cb, headerAndBmp, bmpPointer, &pal, (u16)tileGfxID, tileAnimFrameI);
 
     // omit 4 bytes (some flags, but only semi transparency affects tile graphics as far as I know)
     fseek(mainChp->ptrs_fp, 4, SEEK_CUR);

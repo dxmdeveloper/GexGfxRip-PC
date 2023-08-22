@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <setjmp.h>
 #include "filescanning_tiles.h"
-#include "filescanning_obj_gfx.h"
+#include "filescanning_obj_gfx_and_bg.h"
 #include "../graphics/gfx.h"
 #include "../essentials/vector.h"
 #include "../essentials/stack.h"

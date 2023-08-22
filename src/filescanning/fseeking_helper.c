@@ -51,7 +51,7 @@ static inline char * str_rewrite_without_whitespaces(char * dest, const char * s
 
 /** @brief breaks infinite loop in next switch iteration if pcur is in such loop
   * @return EXIT_SUCCESS (break switch) or EXIT_FAILURE  */
-static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp, Stack32* loopstackp){
+static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp, gexdev_stack32* loopstackp){
     const char* loopend = NULL;
     const char* scopeend = NULL;
 
@@ -67,8 +67,8 @@ static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp,
     return EXIT_FAILURE;
 }
 
-/// @brief used when g instruction is null or invalid
-static inline void _fscan_follow_pattern_continue_to_offset_pop(const char ** pcurp, Stack32* loopstackp){
+/// @brief used when g instruction is null or invalid. The switch ought to be broke after calling this function
+static inline void _fscan_follow_pattern_continue_to_offset_pop(const char ** pcurp, gexdev_stack32* loopstackp){
     const char * scopeend = strFindScopeEndFromInside((*pcurp), '{', '}');
     const char * lowlevelpopscopeend = strFindScopeEndFromInside((*pcurp), 'p', 'b');
     const char * pcurdest = NULL;
@@ -76,10 +76,15 @@ static inline void _fscan_follow_pattern_continue_to_offset_pop(const char ** pc
     if( scopeend && lowlevelpopscopeend ) pcurdest = MIN(scopeend, lowlevelpopscopeend);
     else pcurdest = (scopeend ? scopeend : lowlevelpopscopeend);
 
+    if(pcurdest == NULL){
+        *pcurp = *pcurp + strlen(*pcurp);
+        return;
+    }
+
     for(; *pcurp != pcurdest; (*pcurp)++){
         if(**pcurp == ';'){
-            Stack32_pop(loopstackp);
-            Stack32_pop(loopstackp);
+            gexdev_stack32_pop(loopstackp);
+            gexdev_stack32_pop(loopstackp);
         }
     }
 }
@@ -223,8 +228,8 @@ int fscan_follow_pattern(fscan_file_chunk * fch, const char pattern[], jmp_buf *
 size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], void * pass2cb,
                                   int cb(fscan_file_chunk * fch, gexdev_u32vec * iterVecp, u32 internalVars[INTERNAL_VAR_CNT], void * clientp),
                                   jmp_buf ** errbufpp){
-    Stack32 offsetStack = {0};
-    Stack32 loopStack = {0};
+    gexdev_stack32 offsetStack = {0};
+    gexdev_stack32 loopStack = {0};
     gexdev_u32vec iterVec = {0};
     size_t cbCalls = 0;
     u32 internalVars[INTERNAL_VAR_CNT] = {0};
@@ -232,13 +237,13 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
     char *procpatternp = procpattern;
 
     gexdev_u32vec_init_capcity(&iterVec, 4);
-    Stack32_init(&offsetStack, 128);
-    Stack32_init(&loopStack, 256);
+    gexdev_stack32_init(&offsetStack, 128);
+    gexdev_stack32_init(&loopStack, 256);
 
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp,
         fprintf(stderr, "err: fscan_follow_pattern_recur error");
-        Stack32_close(&offsetStack);
-        Stack32_close(&loopStack);
+                gexdev_stack32_close(&offsetStack);
+                gexdev_stack32_close(&loopStack);
         gexdev_u32vec_close(&iterVec);
     );
 
@@ -267,27 +272,31 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
             } break;
             case '[':{
                 // LOOP START
-                Stack32_push(&loopStack, (u32)(pcur - procpatternp)); // save pcur position
-                Stack32_push(&loopStack, 0); // new iteration
+                gexdev_stack32_push(&loopStack, (u32) (pcur - procpatternp)); // save pcur position
+                gexdev_stack32_push(&loopStack, 0); // new iteration
                 if(iterVec.size < loopStack.sp / 2)
                     gexdev_u32vec_ascounter_inc(&iterVec, loopStack.sp / 2 - 1);
             } break;
             case ';':{
                 // LOOP BODY END
-                u32 popedIteration = Stack32_pop(&loopStack);
-                u32 popedPcurPos = Stack32_pop(&loopStack);
+                u32 popedIteration = gexdev_stack32_pop(&loopStack);
+                u32 popedPcurPos = gexdev_stack32_pop(&loopStack);
                 bool isNullTerminated = (pcur[1] == ']');
                 if(isNullTerminated){
                     if(popedIteration) break;
                 }
                 else {
                     int repeats = atoi(pcur+1);
-                    if(popedIteration + 1 >= repeats) break;
+                    if(popedIteration + 1 >= repeats) {
+                        // loop broken
+                        gexdev_u32vec_pop_back(&iterVec);
+                        break;
+                    }
                 }
                 // if the loop isn't over
                 pcur = procpatternp + popedPcurPos;
-                Stack32_push(&loopStack, popedPcurPos);
-                Stack32_push(&loopStack, popedIteration+(isNullTerminated ? 0 : 1));
+                gexdev_stack32_push(&loopStack, popedPcurPos);
+                gexdev_stack32_push(&loopStack, popedIteration + (isNullTerminated ? 0 : 1));
                 gexdev_u32vec_ascounter_inc(&iterVec, loopStack.sp / 2 - 1);
             } break;
             case 'G':{
@@ -298,12 +307,12 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
                     pcur = strFindScopeEnd(pcur, '}');
                     break;
                 }
-                Stack32_push(&offsetStack, (u32)ftell(fch->ptrs_fp) - 4);
+                gexdev_stack32_push(&offsetStack, (u32) ftell(fch->ptrs_fp) - 4);
                 fseek(fch->ptrs_fp, offset, SEEK_SET);
             } break;
             case '}':{
                 // G scope end
-                u32 offset = Stack32_pop(&offsetStack);
+                u32 offset = gexdev_stack32_pop(&offsetStack);
                 fseek(fch->ptrs_fp, offset+4, SEEK_SET);
             } break;
             case 'c':{
@@ -318,10 +327,10 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
                 }
             } break;
             case 'p':{
-                Stack32_push(&loopStack, (u32)ftell(fch->ptrs_fp));
+                gexdev_stack32_push(&loopStack, (u32) ftell(fch->ptrs_fp));
             } break;
             case 'b':{
-                u32 offset = Stack32_pop(&loopStack);
+                u32 offset = gexdev_stack32_pop(&loopStack);
                 if(offset){
                     fseek(fch->ptrs_fp, offset, SEEK_SET);
                 }
@@ -345,8 +354,8 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
         }
     }
 
-    Stack32_close(&offsetStack);
-    Stack32_close(&loopStack);
+    gexdev_stack32_close(&offsetStack);
+    gexdev_stack32_close(&loopStack);
     gexdev_u32vec_close(&iterVec);
     FSCAN_ERRBUF_REVERT(errbufpp);
     return cbCalls;
