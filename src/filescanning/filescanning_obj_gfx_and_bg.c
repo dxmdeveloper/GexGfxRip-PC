@@ -7,7 +7,7 @@
 
 // TODO: DOCS OF THE PATTERNS
 #define FSCAN_OBJ_GFX_FLW_PATTERN "e+0x20gg [G{ g [G{ [G{ +24 g [G{ +8c };]   };] };] }+4;]"
-#define FSCAN_BACKGROUND_FLW_PATTERN "eg+24[G{ +48 [G{ +4 [g;4]+24g [G{ +8c };] };] };]"
+#define FSCAN_BACKGROUND_FLW_PATTERN "eg+24[G{ +48 [G{ +4 [g;3]   [G{+24g[G{ +8c };]};]   };] };]"
 
 struct obj_gfx_scan_pack {
     struct fscan_files * filesStp;
@@ -16,7 +16,7 @@ struct obj_gfx_scan_pack {
                const struct gfx_palette *palette, u32 iters[3]);
     gexdev_ptr_map * bmp_headers_binds_mapp;
     gexdev_u32vec * ext_bmp_offsetsp;
-    uint ext_bmp_index;
+//    uint ext_bmp_index;
 };
 
 static u32 fscan_cb_bmp_header_binds_compute_index(const void* key){
@@ -30,16 +30,14 @@ static int fscan_cb_flwpat_push_offset(fscan_file_chunk fChunk[1], gexdev_u32vec
     return 1;
 }
 
-// TODO: REMOVE?
 static int fscan_cb_ext_bmp_index_count(fscan_file_chunk fChunk[1], gexdev_u32vec * iterVecp, u32 *iv, void * clientp){
     struct obj_gfx_scan_pack * packp = clientp;
     u32 headerOffset = fscan_read_infile_ptr(fChunk->ptrs_fp, fChunk->offset, NULL);
-    void * mappedBmp = NULL;
     u8 gfxType = 0;
     void * headerData = NULL;
-    fseek(fChunk->ptrs_fp, headerOffset+19, SEEK_SET);
+    fseek(fChunk->ptrs_fp, headerOffset+16, SEEK_SET);
     fread(&gfxType, 1, 1,fChunk->ptrs_fp);
-    if((gfxType & 0xC0) != 0xC0) return 1;
+    if((gfxType & 0xF0) != 0xC0) return 1;
 
     fseek(fChunk->data_fp, headerOffset, SEEK_SET);
     if(!gfx_read_headers_alloc_aob(fChunk->data_fp, &headerData)){
@@ -48,7 +46,7 @@ static int fscan_cb_ext_bmp_index_count(fscan_file_chunk fChunk[1], gexdev_u32ve
     }
 
     u32 relOffset = headerOffset - fChunk->offset;
-    if((mappedBmp = gexdev_ptr_map_get(packp->bmp_headers_binds_mapp, &relOffset))){
+    if( gexdev_ptr_map_get(packp->bmp_headers_binds_mapp, &relOffset)){
         if(headerData) free(headerData);
         return 1;
     }
@@ -76,11 +74,11 @@ static int fscan_cb_prep_obj_gfx_and_exec_cb(fscan_file_chunk fChunk[1], gexdev_
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp,
         fprintf(stderr, "_fscan_prep_obj_gfx_and_exec_cb fread error\n");
         if(headerAndBmp) free(headerAndBmp);
-    );
+    )
 
     graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, bmpChp, &headerAndBmp,
                                         &bmpPointer, packp->ext_bmp_offsetsp->v,
-                                        packp->ext_bmp_offsetsp->size, &packp->ext_bmp_index,
+                                        packp->ext_bmp_offsetsp->size, &packp->filesStp->ext_bmp_index,
                                         *errbufpp, packp->bmp_headers_binds_mapp);
     if(!graphicSize) {FSCAN_ERRBUF_REVERT(errbufpp); return 1;}
 
@@ -105,16 +103,15 @@ inline static void fscan_scan_chunk_for_obj_gfx(struct fscan_files * filesStp, f
                                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
 {
     gexdev_ptr_map bmp_headers_binds_map = {0};
-    struct obj_gfx_scan_pack scan_pack = {filesStp, pass2cb, cb, &bmp_headers_binds_map,&filesStp->ext_bmp_offsets, 0};
+    struct obj_gfx_scan_pack scan_pack = {filesStp, pass2cb, cb, &bmp_headers_binds_map,&filesStp->ext_bmp_offsets};
     gexdev_ptr_map_init(&bmp_headers_binds_map, fChp->size, fscan_cb_bmp_header_binds_compute_index);
 
     jmp_buf ** errbufpp = &filesStp->error_jmp_buf;
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp,
             gexdev_ptr_map_close_all(&bmp_headers_binds_map);
-            gexdev_u32vec_close(&filesStp->ext_bmp_offsets);
     )
 
-    if(!filesStp->used_fchunks_arr[2])
+    if(!filesStp->used_fchunks_arr[2] && filesStp->bitmap_chunk.ptrs_fp)
         fscan_follow_pattern_recur(&filesStp->bitmap_chunk, "e[G{[C;]};3]", &filesStp->ext_bmp_offsets, fscan_cb_flwpat_push_offset, errbufpp);
 
     fscan_follow_pattern_recur(fChp, flwPattern,
@@ -157,7 +154,7 @@ void fscan_intro_obj_gfx_scan(struct fscan_files * filesStp, void *pass2cb,
 
 
 
-void _old_fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
+void fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
 {
     if(filesStp->used_fchunks_arr[5]){
@@ -180,12 +177,12 @@ void _old_fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
     filesStp->used_fchunks_arr[5] = true;
 }
 
-void fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
+void ___old_fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
                            void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
 {
     gexdev_ptr_map bmp_headers_binds_map = {0};
     gexdev_u32vec ext_bmp_offsets = {0};
-    struct obj_gfx_scan_pack scan_pack = {filesStp, pass2cb, cb, &bmp_headers_binds_map,&ext_bmp_offsets, 0};
+    struct obj_gfx_scan_pack scan_pack = {filesStp, pass2cb, cb, &bmp_headers_binds_map,&ext_bmp_offsets};
     gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->bg_chunk.size, fscan_cb_bmp_header_binds_compute_index);
     gexdev_u32vec_init_capcity( &ext_bmp_offsets, 256);
 

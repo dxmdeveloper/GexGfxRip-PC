@@ -6,6 +6,8 @@
 #include "graphics/write_png.h"
 #include "graphics/gfx.h"
 
+#define FILE_COUNT_LIMIT 100000
+
 // mkdir / stat
 #ifdef _WIN32
     #include <direct.h>
@@ -68,21 +70,23 @@ int main(int argc, char *argv[]) {
             FILE* testFile = fopen(ifilename, "rb");
             if(testFile == NULL) continue;
             fclose(testFile);
-            
+
             // output directory name
             sprintf(odirname, "%s-rip/", ifilename);
             options.save_path = odirname;
 
-            if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
-                fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
-            if(fscan_files_st.main_chunk.ptrs_fp)
-                fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
-            if(fscan_files_st.intro_chunk.ptrs_fp)
-                fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
-            if(fscan_files_st.bg_chunk.ptrs_fp)
-                fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
+            if(fscan_files_init(&fscan_files_st, ifilename) >= 0) {
+                if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
+                    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
+                if(fscan_files_st.main_chunk.ptrs_fp)
+                    fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
+                if(fscan_files_st.intro_chunk.ptrs_fp)
+                    fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
+                if(fscan_files_st.bg_chunk.ptrs_fp)
+                    fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
 
-            fscan_files_close(&fscan_files_st);
+                fscan_files_close(&fscan_files_st);
+            }
         }
     } else {
         if(fscan_files_init(&fscan_files_st, argv[argc - 1]) >= 0){
@@ -161,13 +165,14 @@ static void cb_on_tile_found(void *clientp, const void *headers, const void *bit
 
     // infinite loop protection
     static int counter = 0;
-    if(++counter > 30000){ dbg_errlog("FILE COUNT LIMIT REACHED\n"); exit(123);}
+    if(++counter > FILE_COUNT_LIMIT){ dbg_errlog("FILE COUNT LIMIT REACHED\n"); exit(123);}
     // ----------------------------------------
 
     if(!packp->is_tile_dir_created){
         MAKEDIR(packp->app_options->save_path); // TODO: add more options
         snprintf(filePath, PATH_MAX, "%s/tiles", packp->app_options->save_path);
         MAKEDIR(filePath);
+        packp->is_tile_dir_created = true;
     }
     snprintf(filePath, PATH_MAX, "%s/tiles/%04X-%u.png", packp->app_options->save_path, tileGfxID, tileAnimFrameI);
     draw_img_and_create_png(headers, bitmap, palette, filePath);
@@ -176,7 +181,7 @@ static void cb_on_tile_found(void *clientp, const void *headers, const void *bit
 
 inline static void on_obj_gfx_found_body(void * clientp, const void *headers, const void *bitmap,
                                          const struct gfx_palette *palette, uint iterations[4],
-                                         const bool * isdircreatedflagp, const char * subdir){
+                                         bool *isdircreatedflagp, const char * subdir){
     char filePath[PATH_MAX] = "\0";
     struct onfound_pack * packp = clientp;
 
@@ -189,6 +194,7 @@ inline static void on_obj_gfx_found_body(void * clientp, const void *headers, co
         MAKEDIR(packp->app_options->save_path); // TODO: add more options
         snprintf(filePath, PATH_MAX, "%s/%s", packp->app_options->save_path, subdir);
         MAKEDIR(filePath);
+        *isdircreatedflagp = true;
     }
     snprintf(filePath, PATH_MAX, "%s/%s/%u-%u-%u-%u.png",
              packp->app_options->save_path, subdir, iterations[0], iterations[1], iterations[2], iterations[3]);

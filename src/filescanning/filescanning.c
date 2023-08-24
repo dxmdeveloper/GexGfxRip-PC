@@ -46,6 +46,10 @@ int fscan_files_init(struct fscan_files * filesStp, const char filename[]){
     size_t fileSize = 0;
     int retVal = 0;
 
+    // zeroing members
+    for(uint i = 0; i < 6; i++) filesStp->used_fchunks_arr[i] = false;
+    filesStp->ext_bmp_index = 0;
+
     if(gexdev_u32vec_init_capcity(&filesStp->ext_bmp_offsets, 256)) exit(0x1234);
 
     fp = fopen(filename, "rb");
@@ -163,7 +167,13 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
     fseek(chunkp->data_fp, headerOffset, SEEK_SET);
     gex_gfxheader_parsef(chunkp->data_fp, &gfxHeader);
 
-    if((gfxHeader.typeSignature & 0xF0) == 0xC0) isBmpExtern = true;
+    if((gfxHeader.typeSignature & 0xF0) == 0xC0) {
+        isBmpExtern = true;
+        if(extbmpchunkp->ptrs_fp == NULL){
+            fprintf(stderr, "error: fscan_read_header_and_bitmaps_alloc extbmpchunkp param does not point a valid file chunk\n");
+            return 0;
+        }
+    }
 
     fseek(chunkp->data_fp, headerOffset, SEEK_SET);
 
@@ -188,19 +198,18 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
             return 0;
         }
         // bitmap in bitmap file chunk
-        void * mapped_bmp = NULL;
-        u32 rel_header_offset = headerOffset - chunkp->offset;
-        void *bitmap;
+        u32 relHeaderOffset = headerOffset - chunkp->offset;
+        u8 *mappedHeaderBitmap = NULL;
 
-        if((mapped_bmp = gexdev_ptr_map_get(header_bmp_bindsp, &rel_header_offset))){
-            bitmap = mapped_bmp; // reuse bitmap
-        } else {
-            size_t written_bmp_bytes = 0;
-            if(!(bitmap = malloc(totalBitmapSize))) exit(0xB4C3D); // freed in gexdev_ptr_map_close_all
+        if(!(
+                mappedHeaderBitmap = gexdev_ptr_map_get(header_bmp_bindsp, &relHeaderOffset)))
+        {
+            size_t writtenBmpBytes = 0;
+            if(!(mappedHeaderBitmap = malloc(totalBitmapSize + headerSize))) exit(0xB4C3D); // freed in gexdev_ptr_map_close_all
 
             for(void * gchunk = *header_and_bitmapp+20; *(u32*)gchunk; gchunk += 8){
-                size_t bitmap_part_size = 0;
-                u16 gchunkOffset = written_bmp_bytes + 36;
+                size_t bitmapPartSize = 0;
+                u16 gchunkOffset = writtenBmpBytes + 36;
                 u16 sizes[2] = {0};
 
                 if(ext_bmp_offsets_size <= *bmp_indexp)
@@ -211,25 +220,26 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
                 if(fread_LE_U16(sizes, 2, extbmpchunkp->data_fp) != 2)
                     longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
 
-                bitmap_part_size = sizes[0] * sizes[1] * 2;
+                bitmapPartSize = sizes[0] * sizes[1] * 2;
 
-                if(written_bmp_bytes + bitmap_part_size > totalBitmapSize) 
+                if(writtenBmpBytes + bitmapPartSize > totalBitmapSize)
                    longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
 
                 // read bitmap
-                if(fread(bitmap + written_bmp_bytes,1, bitmap_part_size, extbmpchunkp->data_fp) < bitmap_part_size)
+                if(fread(mappedHeaderBitmap + headerSize + writtenBmpBytes, 1, bitmapPartSize, extbmpchunkp->data_fp) < bitmapPartSize)
                     longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
 
                 // overwrite chunk data start offset
                 aob_read_LE_U16(&gchunkOffset);
                 *(u16*)gchunk = gchunkOffset;
 
-                written_bmp_bytes += bitmap_part_size;
+                writtenBmpBytes += bitmapPartSize;
                 (*bmp_indexp)++;
             }
-            gexdev_ptr_map_set(header_bmp_bindsp, &rel_header_offset, bitmap);
+            memcpy(mappedHeaderBitmap, *header_and_bitmapp, headerSize); // copy header before mapping
+            gexdev_ptr_map_set(header_bmp_bindsp, &relHeaderOffset, mappedHeaderBitmap);
         }
-        memcpy(*bmp_startpp, bitmap, totalBitmapSize);
+        memcpy(*header_and_bitmapp, mappedHeaderBitmap, totalBitmapSize + headerSize);
     } else {
         // bitmap next to the header
         if(fread(*bmp_startpp,1, totalBitmapSize, chunkp->data_fp) < totalBitmapSize)

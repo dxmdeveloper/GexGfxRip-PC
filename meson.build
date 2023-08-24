@@ -8,6 +8,7 @@ cc = meson.get_compiler('c')
 
 
 compiler_args = [
+  '-g',
   '-Wno-compare-distinct-pointer-types',
   '-Wno-int-conversion',
   '-Wno-incompatible-pointer-types',
@@ -60,7 +61,7 @@ src = [
   'src/graphics/gfx.c',
   'src/filescanning/filescanning.c',
   'src/filescanning/filescanning_tiles.c',
-  'src/filescanning/filescanning_obj_gfx.c',
+  'src/filescanning/filescanning_obj_gfx_and_bg.c',
   'src/filescanning/fseeking_helper.c',
   'src/essentials/ptr_map.c',
   'src/essentials/vector.c',
