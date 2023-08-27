@@ -49,18 +49,22 @@ static inline char * str_rewrite_without_whitespaces(char * dest, const char * s
     return dest;
 }
 
-/** @brief breaks infinite loop in next switch iteration if pcur is in such loop
+/** @brief breaks infinite loop in next switch iteration if pcur is in such loop. NOTE: Can be nested in ONE G{} scope
   * @return EXIT_SUCCESS (break switch) or EXIT_FAILURE  */
-static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp, gexdev_stack32* loopstackp){
+static inline int _fscan_follow_pattern_break_infinite_loop(const char ** pcurp, gexdev_stack32* loopstackp, gexdev_stack32* offsetstackp){
     const char* loopend = NULL;
     const char* scopeend = NULL;
 
     loopend = strFindScopeEndFromInside(*pcurp, '[', ';');
     scopeend = strFindScopeEndFromInside(*pcurp, '{', '}');
 
-    if(loopend && ( !scopeend || loopend < scopeend) && loopend[1] == ']'){
+    if(loopend && loopend[1] == ']'){
         // break ;] loop
-        loopstackp->stack[loopstackp->sp-1] = 1;
+        if(scopeend && loopend > scopeend){
+            // Suggestion for future (maybe unnecessary): fseek pop offset
+            gexdev_stack32_pop(offsetstackp);
+        }
+        loopstackp->stack[loopstackp->sp - 1] = 1;
         *pcurp = loopend - 1;
         return EXIT_SUCCESS;
     }
@@ -303,7 +307,7 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
                 pcur+=1; // skip to the '{'
                 u32 offset = fscan_read_infile_ptr(fch->ptrs_fp, fch->offset, *errbufpp);
                 if(offset < fch->offset + fch->size / 4096 || offset >= fch->size + fch->offset){
-                    if(!_fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack)) break;
+                    if(!_fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack, &offsetStack)) break;
                     pcur = strFindScopeEnd(pcur, '}');
                     break;
                 }
@@ -323,7 +327,7 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
             case 'C':{
                 cbCalls++;
                 if(!cb(fch, &iterVec, internalVars, pass2cb)){
-                    _fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack);
+                    _fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack, &offsetStack);
                 }
             } break;
             case 'p':{
@@ -345,7 +349,7 @@ size_t fscan_follow_pattern_recur(fscan_file_chunk * fch, const char pattern[], 
             case 'D':{
                 u32 offset = fscan_read_infile_ptr(fch->ptrs_fp, fch->offset, *errbufpp);
                 if(!offset){
-                    _fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack);
+                    _fscan_follow_pattern_break_infinite_loop(&pcur, &loopStack, &offsetStack);
                     break;
                 }
                 fseek(fch->data_fp, offset, SEEK_SET);

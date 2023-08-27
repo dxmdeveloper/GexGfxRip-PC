@@ -119,7 +119,7 @@ static int fscan_prep_tile_gfx_data_and_exec_cb(fscan_file_chunk * fChunkp, gexd
     graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, tileChp, &headerAndBmp, &bmpPointer,
                                                       &packp->tileBmpsOffsetsVecp[1].v[packp->tileBmpsOffsetsVecp[0].v[blockIndex]],
                                                       packp->tileBmpsOffsetsVecp[1].size, &packp->bmp_index[blockIndex],
-                                                      *errbufpp, packp->bmp_headers_binds_map);
+                                                      *errbufpp, packp->bmp_headers_binds_map, false);
     if(!graphicSize) {FSCAN_ERRBUF_REVERT(errbufpp); return 1;}
 
     // palette read

@@ -117,22 +117,21 @@ struct gfx_palette * gfx_palette_parsef(FILE * ifstream, struct gfx_palette * de
 }
 
 size_t gfx_calc_size_of_bitmap(const void * gfxHeaders){
-    u32 width = 0;
-    u32 height = 0;
+    size_t size = 0;
     struct gex_gfxheader header = gex_gfxheader_parse_aob(gfxHeaders);
+    struct gex_gfxchunk gchunk = gex_gfxchunk_parse_aob(gfxHeaders+20);
     u8 bpp = gex_gfxheader_type_get_bpp(header.typeSignature);
 
-    if(gfx_calc_real_width_and_height(&width, &height ,gfxHeaders + 20)){
-        //error
-        return 0;
+    for(uint i = 1; gchunk.startOffset; i++){
+        size += gchunk.width*gchunk.height;
+        gchunk = gex_gfxchunk_parse_aob(gfxHeaders+20+8*i);
     }
-    if(bpp >= 8) return (size_t)(width * height * (bpp/8) );
-    u32 modulo = width * height % (8/bpp);
-    // we add 4 if header and bitmap are separate
-    return (size_t)(width * height / (8/bpp) + modulo); 
+
+    if(bpp >= 8) return size * (bpp/8);
+    u32 modulo = size % (8/bpp);
+    return size / (8/bpp) + modulo;
 }
 
-// TODO : TEST AND FIXES
 size_t gfx_calc_size_of_sprite(const void * gfxHeadersAndOpMap){
     struct gex_gfxheader header = gex_gfxheader_parse_aob(gfxHeadersAndOpMap);
     struct gex_gfxchunk gchunk = gex_gfxchunk_parse_aob(gfxHeadersAndOpMap+20);
@@ -141,7 +140,6 @@ size_t gfx_calc_size_of_sprite(const void * gfxHeadersAndOpMap){
     size_t chunkCnt = 0;
     size_t bytes = 0;
     u32 opmapSize = 0;
-    
 
     while(gchunk.startOffset){
         chunkCnt++;
@@ -159,8 +157,6 @@ size_t gfx_calc_size_of_sprite(const void * gfxHeadersAndOpMap){
 
     return bytes;
 }
-
-// TODO: reimplementation of below functions (done?)
 
 uint8_t **gfx_draw_img_from_raw(const void *gfxHeaders, const uint8_t bitmapDat[]){
     struct gex_gfxheader header = {0};

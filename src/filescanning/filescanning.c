@@ -154,8 +154,9 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk * chp, gexdev_u32vec *ite
 }
 
 size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_chunk *extbmpchunkp, void **header_and_bitmapp,
-                                           void **bmp_startpp, const u32 ext_bmp_offsets[], size_t ext_bmp_offsets_size,
-                                           unsigned int *bmp_indexp, jmp_buf *errbufp, gexdev_ptr_map *header_bmp_bindsp)
+                                    void **bmp_startpp, const u32 ext_bmp_offsets[], size_t ext_bmp_offsets_size,
+                                    unsigned int *bmp_indexp, jmp_buf (*errbufp), gexdev_ptr_map *header_bmp_bindsp,
+                                    bool *last_was_clonep)
 {
     size_t headerSize = 0;
     size_t totalBitmapSize = 0;
@@ -179,7 +180,10 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
 
     headerSize = gfx_read_headers_alloc_aob(chunkp->data_fp, header_and_bitmapp);
     if(!headerSize){
-        if(isBmpExtern) (*bmp_indexp)++; // Skip bitmap
+        if(isBmpExtern) {
+            if(!*last_was_clonep) (*bmp_indexp)++; // Skip bitmap
+            printf("DEBUG INFO: Skipped bitmap\n");
+        }
         return 0;
     }
 
@@ -192,19 +196,15 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
     *bmp_startpp = *header_and_bitmapp + headerSize;
 
     if(isBmpExtern){
-        if(!extbmpchunkp->ptrs_fp){
-            dbg_errlog("dbg_errlog: bitmap supposed to be in file chunk with bitmaps but there is no such chunk\n");
-            free(*header_and_bitmapp);
-            return 0;
-        }
         // bitmap in bitmap file chunk
         u32 relHeaderOffset = headerOffset - chunkp->offset;
         u8 *mappedHeaderBitmap = NULL;
 
-        if(!(
-                mappedHeaderBitmap = gexdev_ptr_map_get(header_bmp_bindsp, &relHeaderOffset)))
-        {
+        if((mappedHeaderBitmap = gexdev_ptr_map_get(header_bmp_bindsp, &relHeaderOffset))){
+            *last_was_clonep = true;
+        } else{
             size_t writtenBmpBytes = 0;
+            *last_was_clonep = false;
             if(!(mappedHeaderBitmap = malloc(totalBitmapSize + headerSize))) exit(0xB4C3D); // freed in gexdev_ptr_map_close_all
 
             for(void * gchunk = *header_and_bitmapp+20; *(u32*)gchunk; gchunk += 8){
@@ -236,12 +236,17 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_
                 writtenBmpBytes += bitmapPartSize;
                 (*bmp_indexp)++;
             }
+            //! DEBUG. NOTE: MAY BE WRONG
+            if(writtenBmpBytes < totalBitmapSize){
+                printf("DEBUG INFO: read bitmap bytes and expected bitmap size difference: %lu\n", totalBitmapSize - writtenBmpBytes);
+            }
             memcpy(mappedHeaderBitmap, *header_and_bitmapp, headerSize); // copy header before mapping
             gexdev_ptr_map_set(header_bmp_bindsp, &relHeaderOffset, mappedHeaderBitmap);
         }
         memcpy(*header_and_bitmapp, mappedHeaderBitmap, totalBitmapSize + headerSize);
     } else {
         // bitmap next to the header
+        *last_was_clonep = false;
         if(fread(*bmp_startpp,1, totalBitmapSize, chunkp->data_fp) < totalBitmapSize)
             longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
     }

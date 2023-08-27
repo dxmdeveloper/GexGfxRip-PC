@@ -37,7 +37,7 @@ static void cb_on_obj_gfx_found(void * clientp, const void *headers, const void 
 static void cb_on_intro_obj_found(void * clientp, const void *headers, const void *bitmap,
                                   const struct gfx_palette *palette, u32 iterations[static 4]);
 static void cb_on_backgrounds_found(void * clientp, const void *headers, const void *bitmap,
-                                    const struct gfx_palette *palette, u32 iterations[static 4]);
+                                    const struct gfx_palette *palette, u32 iterations[static 5]);
 
 void printUsageHelp(){
     printf("USAGE: ."PATH_SEP"gexgfxrip [path to file]\n");
@@ -52,6 +52,8 @@ int main(int argc, char *argv[]) {
     jmp_buf errbuf;
     jmp_buf * errbufp; int errno = 0;
 
+    //! TEMPORARY HERE
+    fscan_files_st.option_verbose = true;
 
     if((errno = setjmp(errbuf))){
         fprintf(stderr, "error while scanning file %i", errno);
@@ -95,8 +97,8 @@ int main(int argc, char *argv[]) {
             sprintf(odirname, "%s-rip/", argv[argc-1]);
             options.save_path = odirname;
 
-            if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
-                fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
+            //if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
+            //    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
             if(fscan_files_st.main_chunk.ptrs_fp)
                 fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
             if(fscan_files_st.intro_chunk.ptrs_fp)
@@ -107,7 +109,7 @@ int main(int argc, char *argv[]) {
             fscan_files_close(&fscan_files_st);
         }
     }
-    return 0;     
+    return 0;
 }
 //-------------------------------------------------------------------
 
@@ -179,10 +181,11 @@ static void cb_on_tile_found(void *clientp, const void *headers, const void *bit
 }
 
 
-inline static void on_obj_gfx_found_body(void * clientp, const void *headers, const void *bitmap,
+inline static void on_gfx_found_body(void * clientp, const void *headers, const void *bitmap,
                                          const struct gfx_palette *palette, uint iterations[4],
-                                         bool *isdircreatedflagp, const char * subdir){
+                                         bool *isdircreatedflagp, const char * subdir, const char *filename_format){
     char filePath[PATH_MAX] = "\0";
+    char fformat[50] = "%s/%s/";
     struct onfound_pack * packp = clientp;
 
     // infinite loop protection
@@ -196,25 +199,26 @@ inline static void on_obj_gfx_found_body(void * clientp, const void *headers, co
         MAKEDIR(filePath);
         *isdircreatedflagp = true;
     }
-    snprintf(filePath, PATH_MAX, "%s/%s/%u-%u-%u-%u.png",
+    strncat(fformat, filename_format,44);
+    snprintf(filePath, PATH_MAX, fformat,
              packp->app_options->save_path, subdir, iterations[0], iterations[1], iterations[2], iterations[3]);
     draw_img_and_create_png(headers, bitmap, palette, filePath);
 }
 
 static void cb_on_obj_gfx_found(void * clientp, const void *headers, const void *bitmap,
                                 const struct gfx_palette *palette, u32 iterations[4]){
-    on_obj_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                          &((struct onfound_pack *)clientp)->is_obj_gfx_dir_created, "objects");
+    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
+                          &((struct onfound_pack *)clientp)->is_obj_gfx_dir_created, "objects", "%u-%u-%u-%u.png");
 }
 
 void cb_on_intro_obj_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
                            u32 iterations[4]) {
-    on_obj_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                          &((struct onfound_pack *)clientp)->is_intro_dir_created, "intro");
+    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
+                          &((struct onfound_pack *)clientp)->is_intro_dir_created, "intro", "%u-%u-%u-%u.png");
 }
 
 void cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                             u32 iterations[4]) {
-    on_obj_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                          &((struct onfound_pack *)clientp)->is_bg_dir_created, "backgrounds");
+                             u32 iterations[5]) {
+    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
+                          &((struct onfound_pack *)clientp)->is_bg_dir_created, "backgrounds", "%u-%u-%u-%u.png");
 }
