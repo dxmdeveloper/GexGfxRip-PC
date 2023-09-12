@@ -25,8 +25,11 @@ static u32 fscan_cb_bmp_header_binds_compute_index(const void* key){
 
 static int fscan_cb_flwpat_push_offset(fscan_file_chunk fChunk[1], gexdev_u32vec * iterVecp, u32 * internalVars, void * clientp){
     u32 offset = fscan_read_infile_ptr(fChunk->ptrs_fp, fChunk->offset, NULL);
+    u16 wh[2] = {0};
     if(!offset) return 0;
-    gexdev_u32vec_push_back(clientp, offset);
+    fseek(fChunk->data_fp, offset, SEEK_SET);
+    fread_LE_U16(wh, 2, fChunk->data_fp);
+    if(wh[0] && wh[1]) gexdev_u32vec_push_back(clientp, offset);
     return 1;
 }
 
@@ -98,32 +101,10 @@ static int fscan_cb_prep_obj_gfx_and_exec_cb(fscan_file_chunk fChunk[1], gexdev_
         fseek(mainChp->ptrs_fp, -8, SEEK_CUR);
     }
 
-    //! TESTS !
-    static bool lastWasClone = false;
-    //static bool prevI1 = 0;
-    //if(prevI1 != iterVecp->v[1]) {
-    //    lastWasClone = false;
-    //}
-    //prevI1 = iterVecp->v[1];
-
-    // TEMPORARY
-    if(iterVecp->v[0] == 0 && iterVecp->v[1] == 0 && iterVecp->v[2] == 0 && iterVecp->v[3] == 0){
-        lastWasClone = false;
-    }
-
-    // DEBUG
-    //if((iterVecp->v[0] == 6 && iterVecp->v[1] == 5 && iterVecp->v[2] == 2 && iterVecp->v[3] == 16)
-    //|| (iterVecp->v[0] == 7 && iterVecp->v[1] == 0 && iterVecp->v[2] == 2 && iterVecp->v[3] == 2)){
-    //    static int cnt = 0;
-    //    //if(cnt++ == 1)
-    //        packp->filesStp->ext_bmp_index += 1;
-    //    printf("breakpoint\n");
-    //}
-
     graphicSize = fscan_read_header_and_bitmaps_alloc(mainChp, bmpChp, &headerAndBmp,
                                                       &bmpPointer, packp->ext_bmp_offsetsp->v,
                                                       packp->ext_bmp_offsetsp->size, &packp->filesStp->ext_bmp_index,
-                                                      *errbufpp, packp->bmp_headers_binds_mapp, &lastWasClone);
+                                                      *errbufpp, packp->bmp_headers_binds_mapp, false);
     if(graphicSize == 0) {
         FSCAN_ERRBUF_REVERT(errbufpp); return 1;
     }

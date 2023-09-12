@@ -8,6 +8,7 @@
 #include "../essentials/vector.h"
 #include "../essentials/stack.h"
 #include "../essentials/ptr_map.h"
+#include "basicdefs.h"
 
 #define FILE_MIN_SIZE 128
 
@@ -118,6 +119,6 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk * chunkp, gexdev_u32vec *
   * @param bmp_startpp pointer to pointer to bitmap in header_and_bitmapp. Can be NULL.
   * @return size of header_and_bitmap array. 0 means that function failed. */
 size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *chunkp, fscan_file_chunk *extbmpchunkp, void **header_and_bitmapp,
-                                    void **bmp_startpp, const unsigned int ext_bmp_offsets[],
-                                    size_t ext_bmp_offsets_size, unsigned int *bmp_indexp, jmp_buf (*errbufp),
-                                    gexdev_ptr_map *header_bmp_bindsp, bool *last_was_clonep);
+                                           void **bmp_startpp, const u32 ext_bmp_offsets[],
+                                           size_t ext_bmp_offsets_size, unsigned int *bmp_indexp, jmp_buf (*errbufp),
+                                           gexdev_ptr_map *header_bmp_bindsp, bool isTile);
