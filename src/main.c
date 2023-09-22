@@ -6,7 +6,7 @@
 #include "graphics/write_png.h"
 #include "graphics/gfx.h"
 
-#define FILE_COUNT_LIMIT 100000
+#define FILE_COUNT_LIMIT 600000
 
 // mkdir / stat
 #ifdef _WIN32
@@ -190,7 +190,7 @@ inline static void on_gfx_found_body(void * clientp, const void *headers, const 
 
     // infinite loop protection
     static int counter = 0;
-    if(++counter > 30000){ dbg_errlog("FILE COUNT LIMIT REACHED\n"); exit(123);}
+    if(++counter > FILE_COUNT_LIMIT){ dbg_errlog("FILE COUNT LIMIT REACHED\n"); exit(123);}
     // ----------------------------------------
 
     if(!*isdircreatedflagp){

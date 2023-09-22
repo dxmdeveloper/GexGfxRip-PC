@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.26)
+cmake_minimum_required(VERSION 3.11)
 project(GexGfxRip_PC)
 
 set(CMAKE_C_STANDARD 99)
@@ -33,6 +33,6 @@ add_executable(GexGfxRip_PC
         src/helpers/basicdefs.h
         src/helpers/binary_parse.h
         src/main.c
-        )
+        src/filescanning/filescanning_obj_gfx_and_bg.c)
 
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})

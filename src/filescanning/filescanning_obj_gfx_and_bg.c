@@ -125,6 +125,7 @@ static int fscan_cb_prep_obj_gfx_and_exec_cb(fscan_file_chunk fChunk[1], gexdev_
     return 1;
 }
 
+// body of fscan_obj_gfx_scan & fscan_background_scan
 inline static void fscan_scan_chunk_for_obj_gfx(struct fscan_files * filesStp, fscan_file_chunk * fChp,
                                                 bool dontPrepGfxData, char * flwPattern, void *pass2cb,
                                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
@@ -139,7 +140,8 @@ inline static void fscan_scan_chunk_for_obj_gfx(struct fscan_files * filesStp, f
     )
 
     if(!filesStp->used_fchunks_arr[2] && filesStp->bitmap_chunk.ptrs_fp)
-        fscan_follow_pattern_recur(&filesStp->bitmap_chunk, "e[G{[C;]};3]", &filesStp->ext_bmp_offsets, fscan_cb_flwpat_push_offset, errbufpp);
+        fscan_follow_pattern_recur(&filesStp->bitmap_chunk, "e[G{[C;]};6]",
+                                   &filesStp->ext_bmp_offsets, fscan_cb_flwpat_push_offset, errbufpp);
 
     fscan_follow_pattern_recur(fChp, flwPattern,
                                &scan_pack,
@@ -179,8 +181,6 @@ void fscan_intro_obj_gfx_scan(struct fscan_files * filesStp, void *pass2cb,
     filesStp->used_fchunks_arr[4] = true;
 }
 
-
-
 void fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
 {
@@ -204,29 +204,3 @@ void fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
     fscan_scan_chunk_for_obj_gfx(filesStp, &filesStp->bg_chunk, false, FSCAN_BACKGROUND_FLW_PATTERN, pass2cb, cb);
     filesStp->used_fchunks_arr[5] = true;
 }
-
-void old__fscan_background_scan(struct fscan_files *filesStp, void *pass2cb,
-                           void cb(void *, const void *, const void *, const struct gfx_palette *, u32 *))
-{
-    gexdev_ptr_map bmp_headers_binds_map = {0};
-    gexdev_u32vec ext_bmp_offsets = {0};
-    struct obj_gfx_scan_pack scan_pack = {filesStp, pass2cb, cb, &bmp_headers_binds_map,&ext_bmp_offsets};
-    gexdev_ptr_map_init(&bmp_headers_binds_map, filesStp->bg_chunk.size, fscan_cb_bmp_header_binds_compute_index);
-    gexdev_u32vec_init_capcity( &ext_bmp_offsets, 256);
-
-    jmp_buf ** errbufpp = &filesStp->error_jmp_buf;
-    FSCAN_ERRBUF_CHAIN_ADD(errbufpp,
-        gexdev_ptr_map_close_all(&bmp_headers_binds_map);
-        gexdev_u32vec_close(&ext_bmp_offsets);
-    )
-
-    fscan_follow_pattern_recur(&filesStp->bitmap_chunk, "e+8g [C;]", &ext_bmp_offsets, fscan_cb_flwpat_push_offset, errbufpp);
-
-    fscan_follow_pattern_recur(&filesStp->bg_chunk, FSCAN_BACKGROUND_FLW_PATTERN,&scan_pack,  fscan_cb_prep_obj_gfx_and_exec_cb, errbufpp);
-
-    filesStp->used_fchunks_arr[2] = true;
-    // cleanup
-    gexdev_ptr_map_close_all(&bmp_headers_binds_map);
-    FSCAN_ERRBUF_REVERT(errbufpp);
-}
-
