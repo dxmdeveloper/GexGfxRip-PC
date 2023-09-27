@@ -124,13 +124,13 @@ inline static int draw_img_and_create_png(const void *headers, const void *bitma
     gfxHeader = gex_gfxheader_parse_aob(headers);
 
     // palette validation
-    if(gfxHeader.typeSignature & 2) palette = NULL;
+    if(gfxHeader.type_signature & 2) palette = NULL;
 
-    if((gfxHeader.typeSignature & 2) == 0 && !palette){
+    if((gfxHeader.type_signature & 2) == 0 && !palette){
         fprintf(stderr, "error: palette is missing\n");
         return EXIT_FAILURE;
     }
-    if((gfxHeader.typeSignature & 1) && palette->colorsCount < 256){
+    if((gfxHeader.type_signature & 1) && palette->colors_cnt < 256){
         fprintf(stderr, "error: color palette and graphic types mismatch\n");
         return EXIT_FAILURE;
     }
