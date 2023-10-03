@@ -61,7 +61,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // if no additional program arguments or
+    // if no additional program arguments or asterisk
     if(argc == 1 || strcmp(argv[argc-1], "*") == 0){
         char ifilename[11];
         for(u8 fileI = 0; fileI < 255; fileI++){
@@ -97,8 +97,8 @@ int main(int argc, char *argv[]) {
             sprintf(odirname, "%s-rip/", argv[argc-1]);
             options.save_path = odirname;
 
-            //if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
-            //    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
+            if(fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
+                fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
             if(fscan_files_st.main_chunk.ptrs_fp)
                 fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
             if(fscan_files_st.intro_chunk.ptrs_fp)
