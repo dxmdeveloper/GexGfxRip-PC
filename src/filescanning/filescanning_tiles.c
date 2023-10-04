@@ -28,6 +28,8 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
 {
     gexdev_ptr_map bmp_headers_binds_map = { 0 };
     gexdev_u32vec tile_bmp_offsets[2] = { 0 };
+    fscan_file_chunk *tchp = &files_stp->tile_chunk;
+    fscan_file_chunk *mchp = &files_stp->main_chunk;
     gexdev_ptr_map_init(&bmp_headers_binds_map, files_stp->main_chunk.size / 32, prv_fscan_cb_tile_header_binds_compute_index);
     gexdev_u32vec_init_capcity(&tile_bmp_offsets[0], 16);
     gexdev_u32vec_init_capcity(&tile_bmp_offsets[1], 256);
@@ -43,41 +45,83 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
 			   gexdev_ptr_map_close_all(&bmp_headers_binds_map);)
     // -----------------------------------------------------------
 
-    // TODO: REMOVE THE HELPER HERE TOO
-    fscan_follow_pattern_recur(&files_stp->tile_chunk, "e[G{[C;]};]", &tile_bmp_offsets, fscan_cb_read_offset_to_vec_2lvls, errbufpp);
+    // ----- tile file chunk scan for bitmap offsets -----
+    u32 block[32] = { 0 };
+    fseek(tchp->ptrs_fp, tchp->ep, SEEK_SET);
 
-    {
-	uint bmp_iters[32] = { 0 };
-	fscan_file_chunk *mchp = &files_stp->main_chunk;
+    // read offsets of gfx blocks
+    fscan_read_gexptr_null_term_arr(tchp, block, 32, *errbufpp);
 
-	fseek(mchp->ptrs_fp, mchp->ep + 0x28, SEEK_SET);
-	fscan_read_gexptr_and_follow(mchp, 0, *errbufpp);
+    for (uint i = 0; i < 32 && block[i]; i++) {
+	u32 bmpoffsets[257] = { 0 };
+	gexdev_u32vec_push_back(&tile_bmp_offsets[0], tile_bmp_offsets[1].size);
 
-	// read offsets of tile gfx blocks
-	u32 block[32] = { 0 };
-	for (uint i = 0; i < 32; i++)
-	    if ((block[i] = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp)))
-		break;
-
-	// follow the read offsets, prepare tile graphics and call the callback passed to current function.
-	for (uint i = 0; i < 32 && block[i]; i++) {
-	    u32 gfxid = 0;
-	    if (block[i] >= mchp->offset + mchp->size + 20)
-		continue;
-
-	    fseek(mchp->ptrs_fp, block[i] + 4, SEEK_SET);
-	    while (true) {
-		fread_LE_U32(&gfxid, 1, mchp->ptrs_fp);
-		if (!prv_fscan_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, 0, i, &bmp_headers_binds_map, tile_bmp_offsets, bmp_iters,
-							      pass2cb, cb))
-		    break;
-	    }
+	fseek(tchp->ptrs_fp, block[i], SEEK_SET);
+	fscan_read_gexptr_null_term_arr(tchp, bmpoffsets, 257, *errbufpp);
+	for (uint ii = 0; ii < 257 && bmpoffsets[ii]; ii++) {
+	    u16 dim[2] = { 0 };
+	    fseek(tchp->data_fp, bmpoffsets[ii], SEEK_SET);
+	    fread_LE_U16(dim, 2, tchp->data_fp);
+	    if (dim[0] && dim[1])
+		gexdev_u32vec_push_back(&tile_bmp_offsets[1], bmpoffsets[ii]);
 	}
     }
 
-    // anim tiles
-    // TODO: IMPLEMENT NEW SOLUTION
-    //fscan_follow_pattern_recur(&files_stp->main_chunk, 0, &cbpack, prv_fscan_prep_tile_gfx_data_and_exec_cb, 0);
+    // ----- main file chunk scan for graphic entries -----
+    uint bmp_iters[32] = { 0 };
+
+    fseek(mchp->ptrs_fp, mchp->ep + 0x28, SEEK_SET);
+    fscan_read_gexptr_and_follow(mchp, 0, *errbufpp);
+
+    // read offsets of tile gfx blocks
+    fscan_read_gexptr_null_term_arr(mchp, block, 32, *errbufpp);
+
+    // follow the read offsets, prepare tile graphics and call the callback passed to current function.
+    for (uint i = 0; i < 32 && block[i]; i++) {
+	u32 gfxid = 0;
+	u32 animsetsoff = 0;
+
+	fseek(mchp->ptrs_fp, block[i], SEEK_SET);
+	animsetsoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp);
+
+	if (animsetsoff >= mchp->size + mchp->offset - 4)
+	    longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
+
+	if(i == 6)
+	    i = 6;
+	// base tile graphics
+	while (true) {
+	    fread_LE_U32(&gfxid, 1, mchp->ptrs_fp);
+	    if(gfxid > 0xffff)
+		gfxid = gfxid;
+	    if (!prv_fscan_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, 0, i, &bmp_headers_binds_map, tile_bmp_offsets, bmp_iters,
+							  pass2cb, cb)) {
+		break;
+	    }
+	}
+	// animated tile frames
+	u32 aframesoff = 0;
+	uint animind = 0;
+
+	/* TODO: Move it after all base tile gfx blocks processed. */
+
+	fseek(mchp->ptrs_fp, animsetsoff, SEEK_SET);
+	while ((aframesoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp))) {
+	    uint animfrind = 1;
+
+	    fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read graphic id
+	    if (aframesoff >= mchp->size + mchp->offset - 4)
+		longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
+	    fseek(mchp->ptrs_fp, aframesoff, SEEK_SET);
+
+	    while (prv_fscan_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, animfrind, i, &bmp_headers_binds_map, tile_bmp_offsets,
+							    bmp_iters, pass2cb, cb)) {
+		animfrind++;
+	    }
+
+	    fseek(mchp->ptrs_fp, animsetsoff + 20 * ++animind, SEEK_SET);
+	}
+    }
 
     files_stp->used_fchunks_arr[1] = true;
     // cleanup
@@ -103,17 +147,20 @@ static int prv_fscan_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp
     // error handling
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp, {
 	fprintf(stderr, "prv_fscan_prep_tile_gfx_data_and_exec_cb error\n");
+	fprintf(stderr, "main file chunk: ptrs_fp pos=%lu, data_fp pos=%lu\n",ftell(mchp->ptrs_fp), ftell(mchp->data_fp));
 	if (header_and_bmp)
 	    free(header_and_bmp);
     })
 
-    if (tile_gfx_id == 0xFFFFFFFF || block_ind >= 32) {
+    if (tile_gfx_id > 0xffff || block_ind >= 32) {
 	// end of tile list
 	FSCAN_ERRBUF_REVERT(errbufpp);
 	return 0;
     }
 
-    if (!fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp)) {
+    u32 hoff;
+    if (!(hoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp))
+	|| hoff > mchp->size + mchp->offset) {
 	FSCAN_ERRBUF_REVERT(errbufpp);
 	return 0;
     }

@@ -190,6 +190,7 @@ size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_j
     return retval;
 }
 
+// TODO: REMOVE THIS FUNCTION
 int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chp, gexdev_u32vec *iter, u32 *ivars, void *clientp)
 {
     gexdev_u32vec *vec_arr = clientp; //[2]
@@ -312,6 +313,18 @@ uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_bu
 	return 0;
     fseek(fchp->ptrs_fp, gexptr + addoff, SEEK_SET);
     return gexptr;
+}
+
+size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], size_t dest_size, jmp_buf(*errbufp))
+{
+    for (uint i = 0; i < dest_size-1; i++)
+	if (!(dest[i] = fscan_read_infile_ptr(fchp->ptrs_fp, fchp->offset, errbufp))
+	    || dest[i] >= fchp->size + fchp->offset - 4) {
+	    dest[i] = 0;
+	    return i;
+	}
+    dest[dest_size-2] = 0;
+    return dest_size-1;
 }
 
 static uptr prv_fscan_gexptr_to_offset(u32 gexptr, uptr start_offset)

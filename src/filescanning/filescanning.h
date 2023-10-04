@@ -128,3 +128,9 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_ch
 					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp, bool is_tile);
 
 uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_buf(*errbufp));
+
+/** @brief reads null terminated array of gexptrs and converts them to file offsets. The function ensures that read pointer has a valid address.
+ * @param dest array wherein resolved file offsets will be written. The function will write 0 as last pointer
+ * @param dest_size size of dest array. Minimum allowed value is 1, but should be minimum 2
+ * @return count of read pointers */
+size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], size_t dest_size, jmp_buf(*errbufp));
