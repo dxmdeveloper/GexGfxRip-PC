@@ -208,7 +208,7 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chp, gexdev_u32vec *iter
 
 size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *extbmpchunkp, void **header_and_bitmapp,
 					   void **bmp_startpp, const u32 ext_bmp_offsets[], size_t ext_bmp_offsets_size,
-					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp, bool is_tile)
+					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp)
 {
     size_t header_size = 0;
     size_t total_bmp_size = 0;
@@ -231,12 +231,8 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_ch
     fseek(fchp->data_fp, header_offset, SEEK_SET);
 
     header_size = gfx_read_headers_alloc_aob(fchp->data_fp, header_and_bitmapp);
-    if (!header_size) {
-	if (is_bmp_extern && is_tile) {
-	    (*bmp_indexp)++; // Skip bitmap
-	}
+    if (!header_size)
 	return 0;
-    }
 
     total_bmp_size = gfxheader.type_signature & 4 ? gfx_calc_size_of_sprite(*header_and_bitmapp) :
 						    gfx_calc_size_of_bitmap(*header_and_bitmapp);

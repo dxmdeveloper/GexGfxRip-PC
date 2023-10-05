@@ -125,7 +125,7 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chunkp, gexdev_u32vec *i
   * @return size of header_and_bitmap array. 0 means that function failed. */
 size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *extbmpchunkp, void **header_and_bitmapp,
 					   void **bmp_startpp, const u32 ext_bmp_offsets[], size_t ext_bmp_offsets_size,
-					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp, bool is_tile);
+					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp);
 
 uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_buf(*errbufp));
 

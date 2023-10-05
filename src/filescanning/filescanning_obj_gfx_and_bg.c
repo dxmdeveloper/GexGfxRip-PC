@@ -121,7 +121,7 @@ static int prv_fscan_cb_prep_obj_gfx_and_exec_cb(fscan_file_chunk fchunk[1], gex
 
     gfx_size = fscan_read_header_and_bitmaps_alloc(main_chp, bmp_chp, &header_and_bmp, &bmpp, packp->ext_bmp_offsetsp->v,
 						   packp->ext_bmp_offsetsp->size, &packp->files_stp->ext_bmp_index, *errbufpp,
-						   packp->bmp_headers_binds_mapp, false);
+						   packp->bmp_headers_binds_mapp);
     if (gfx_size == 0) {
 	FSCAN_ERRBUF_REVERT(errbufpp);
 	return 1;

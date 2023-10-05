@@ -87,23 +87,25 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
 	if (animsetsoff >= mchp->size + mchp->offset - 4)
 	    longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
 
-	if(i == 6)
-	    i = 6;
 	// base tile graphics
+	uint dbg_cnt = 0;
 	while (true) {
+	    if(i == 6 && dbg_cnt++ == 44)
+		i = 6;
+
 	    fread_LE_U32(&gfxid, 1, mchp->ptrs_fp);
-	    if(gfxid > 0xffff)
-		gfxid = gfxid;
+
 	    if (!prv_fscan_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, 0, i, &bmp_headers_binds_map, tile_bmp_offsets, bmp_iters,
 							  pass2cb, cb)) {
 		break;
 	    }
 	}
-	// animated tile frames
-	u32 aframesoff = 0;
-	uint animind = 0;
 
-	/* TODO: Move it after all base tile gfx blocks processed. */
+	// animated tiles
+	uint animind = 0;
+	u32 aframesoff = 0;
+	if(!animsetsoff)
+	    continue;
 
 	fseek(mchp->ptrs_fp, animsetsoff, SEEK_SET);
 	while ((aframesoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp))) {
@@ -121,6 +123,7 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
 
 	    fseek(mchp->ptrs_fp, animsetsoff + 20 * ++animind, SEEK_SET);
 	}
+
     }
 
     files_stp->used_fchunks_arr[1] = true;
@@ -147,7 +150,7 @@ static int prv_fscan_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp
     // error handling
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp, {
 	fprintf(stderr, "prv_fscan_prep_tile_gfx_data_and_exec_cb error\n");
-	fprintf(stderr, "main file chunk: ptrs_fp pos=%lu, data_fp pos=%lu\n",ftell(mchp->ptrs_fp), ftell(mchp->data_fp));
+	fprintf(stderr, "main file chunk: ptrs_fp pos=%lu, data_fp pos=%lu\n", ftell(mchp->ptrs_fp), ftell(mchp->data_fp));
 	if (header_and_bmp)
 	    free(header_and_bmp);
     })
@@ -159,11 +162,11 @@ static int prv_fscan_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp
     }
 
     u32 hoff;
-    if (!(hoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp))
-	|| hoff > mchp->size + mchp->offset) {
+    if (!(hoff = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp)) || hoff > mchp->size + mchp->offset) {
 	FSCAN_ERRBUF_REVERT(errbufpp);
 	return 0;
     }
+
     fseek(mchp->ptrs_fp, -4, SEEK_CUR);
 
     if (tile_bmp_offsets_vecp[0].size <= block_ind || tile_bmp_offsets_vecp[1].size <= tile_bmp_offsets_vecp[0].v[block_ind])
@@ -171,14 +174,15 @@ static int prv_fscan_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp
 
     gfx_size = fscan_read_header_and_bitmaps_alloc(mchp, tchp, &header_and_bmp, &bmpp,
 						   &tile_bmp_offsets_vecp[1].v[tile_bmp_offsets_vecp[0].v[block_ind]],
-						   tile_bmp_offsets_vecp[1].size, &bmp_index[block_ind], *errbufpp, bmp_headers_binds_map,
-						   true);
+						   tile_bmp_offsets_vecp[1].size, &bmp_index[block_ind], *errbufpp, bmp_headers_binds_map);
     if (!gfx_size) {
 	FSCAN_ERRBUF_REVERT(errbufpp);
+	fseek(mchp->ptrs_fp, 8, SEEK_CUR);
 	return 1;
     }
 
     // palette read
+    // TODO: CACHE PALETTE
     u32 paletteOffset = fscan_read_infile_ptr(mchp->ptrs_fp, mchp->offset, *errbufpp);
     fseek(mchp->data_fp, paletteOffset, SEEK_SET);
     gfx_palette_parsef(mchp->data_fp, &pal);
