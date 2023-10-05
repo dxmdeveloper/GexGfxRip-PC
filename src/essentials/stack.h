@@ -6,7 +6,7 @@ typedef struct gexdev_stack32_struct {
     size_t size;
     size_t sp;
 
-    uint32_t * stack;
+    uint32_t *stack;
 
 } gexdev_stack32;
 

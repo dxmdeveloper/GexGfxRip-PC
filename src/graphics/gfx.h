@@ -130,7 +130,8 @@ void **gfx_draw_gex_bitmap_16bpp(const void *chunk_headers, const void *bitmap_d
  *  @param bpp - bits per pixel 2/4/8
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-uint8_t **gfx_draw_sprite(const void *chunk_headers_and_opmap, const uint8_t bitmap_dat[], uint8_t bpp, uint32_t min_width, uint32_t min_height);
+uint8_t **gfx_draw_sprite(const void *chunk_headers_and_opmap, const uint8_t bitmap_dat[], uint8_t bpp, uint32_t min_width,
+			  uint32_t min_height);
 
 /** @brief calcs real sizes of graphic.
     @return true if sizes are invalid. false if everything is ok.*/

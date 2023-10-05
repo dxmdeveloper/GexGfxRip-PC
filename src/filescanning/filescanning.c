@@ -6,16 +6,16 @@
 
 // ___________________________________________________ STATIC FUNCTION DECLARATIONS ___________________________________________________
 
-static uptr prv_fscan_gexptr_to_offset(u32 gexptr, uptr start_offset);
-static u32 prv_fscan_offset_to_gexptr(uptr offset, uptr file_start_offset);
+static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset);
+static u32 p_offset_to_gexptr(uptr offset, uptr file_start_offset);
 
 // part of fscan_init
-static inline int prv_fscan_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize, fscan_file_chunk fchunk[1]);
+static inline int p_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize, fscan_file_chunk fchunk[1]);
 
 // _______________________________________________________ FUNCTION DEFINITIONS _______________________________________________________
 
 /// @return -1 fopen failed (don't forget to close mainFp in client), 0 success, 1 invalid chunk
-static inline int prv_fscan_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize, fscan_file_chunk fchunk[1])
+static inline int p_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize, fscan_file_chunk fchunk[1])
 {
     fread_LE_U32((u32 *)&fchunk->size, 1, general_fp);
     fread_LE_U32(&fchunk->offset, 1, general_fp);
@@ -29,7 +29,7 @@ static inline int prv_fscan_files_init_open_and_set(const char filename[], FILE 
     fseek(fchunk->data_fp, fchunk->offset, SEEK_SET);
     fseek(fchunk->ptrs_fp, epOffset, SEEK_SET);
     fread_LE_U32(&fchunk->ep, 1, fchunk->ptrs_fp);
-    fchunk->ep = (u32)prv_fscan_gexptr_to_offset(fchunk->ep, fchunk->offset);
+    fchunk->ep = (u32)p_gexptr_to_offset(fchunk->ep, fchunk->offset);
 
     return 0;
 }
@@ -69,7 +69,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
 
 	// Tile bitmaps chunk setup
 	fseek(fp, 0x28, SEEK_SET);
-	switch (prv_fscan_files_init_open_and_set(filename, fp, fsize, &files_stp->tile_chunk)) {
+	switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->tile_chunk)) {
 	case -1:
 	    fclose(fp);
 	    return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
@@ -79,7 +79,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
 	}
 	// Chunk with bitmaps (of backgrounds and objects) setup
 	fseek(fp, 8, SEEK_CUR);
-	switch (prv_fscan_files_init_open_and_set(filename, fp, fsize, &files_stp->bitmap_chunk)) {
+	switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->bitmap_chunk)) {
 	case -1:
 	    fclose(fp);
 	    return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
@@ -89,7 +89,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
 	}
 	// Main chunk setup
 	fseek(fp, 8, SEEK_CUR);
-	switch (prv_fscan_files_init_open_and_set(filename, fp, fsize, &files_stp->main_chunk)) {
+	switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->main_chunk)) {
 	case -1:
 	    fclose(fp);
 	    return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
@@ -99,7 +99,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
 	}
 	// Intro chunk setup
 	fseek(fp, 8, SEEK_CUR);
-	switch (prv_fscan_files_init_open_and_set(filename, fp, fsize, &files_stp->intro_chunk)) {
+	switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->intro_chunk)) {
 	case -1:
 	    fclose(fp);
 	    return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
@@ -109,7 +109,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
 	}
 	// Background chunk setup
 	fseek(fp, 8, SEEK_CUR);
-	switch (prv_fscan_files_init_open_and_set(filename, fp, fsize, &files_stp->bg_chunk)) {
+	switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->bg_chunk)) {
 	case -1:
 	    fclose(fp);
 	    return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
@@ -173,13 +173,13 @@ void fscan_files_close(struct fscan_files *files_stp)
     gexdev_u32vec_close(&files_stp->ext_bmp_offsets);
 }
 
-u32 fscan_read_infile_ptr(FILE *fp, u32 chunk_offset, jmp_buf *error_jmp_buf)
+u32 fscan_read_gexptr(FILE *fp, uint32_t chunk_offset, jmp_buf *error_jmp_buf)
 {
     u32 val = 0;
     if (!fread_LE_U32(&val, 1, fp) && error_jmp_buf)
 	longjmp(*error_jmp_buf, FSCAN_READ_ERROR_FREAD);
 
-    return (u32)prv_fscan_gexptr_to_offset(val, chunk_offset);
+    return (u32)p_gexptr_to_offset(val, chunk_offset);
 }
 
 size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_jmp_buf)
@@ -194,7 +194,7 @@ size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_j
 int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chp, gexdev_u32vec *iter, u32 *ivars, void *clientp)
 {
     gexdev_u32vec *vec_arr = clientp; //[2]
-    u32 offset = fscan_read_infile_ptr(chp->ptrs_fp, chp->offset, NULL);
+    u32 offset = fscan_read_gexptr(chp->ptrs_fp, chp->offset, NULL);
     if (!offset)
 	return 0;
 
@@ -214,7 +214,7 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_ch
     size_t total_bmp_size = 0;
     struct gex_gfxheader gfxheader = { 0 };
     bool is_bmp_extern = false;
-    u32 header_offset = fscan_read_infile_ptr(fchp->ptrs_fp, fchp->offset, errbufp);
+    u32 header_offset = fscan_read_gexptr(fchp->ptrs_fp, fchp->offset, errbufp);
 
     // header read
     fseek(fchp->data_fp, header_offset, SEEK_SET);
@@ -304,7 +304,7 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_ch
 }
 uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_buf(*errbufp))
 {
-    u32 gexptr = fscan_read_infile_ptr(fchp->ptrs_fp, fchp->offset, errbufp);
+    u32 gexptr = fscan_read_gexptr(fchp->ptrs_fp, fchp->offset, errbufp);
     if (!gexptr || gexptr >= fchp->offset + fchp->size)
 	return 0;
     fseek(fchp->ptrs_fp, gexptr + addoff, SEEK_SET);
@@ -313,24 +313,23 @@ uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_bu
 
 size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], size_t dest_size, jmp_buf(*errbufp))
 {
-    for (uint i = 0; i < dest_size-1; i++)
-	if (!(dest[i] = fscan_read_infile_ptr(fchp->ptrs_fp, fchp->offset, errbufp))
-	    || dest[i] >= fchp->size + fchp->offset - 4) {
+    for (uint i = 0; i < dest_size - 1; i++)
+	if (!(dest[i] = fscan_read_gexptr(fchp->ptrs_fp, fchp->offset, errbufp)) || dest[i] >= fchp->size + fchp->offset - 4) {
 	    dest[i] = 0;
 	    return i;
 	}
-    dest[dest_size-2] = 0;
-    return dest_size-1;
+    dest[dest_size - 2] = 0;
+    return dest_size - 1;
 }
 
-static uptr prv_fscan_gexptr_to_offset(u32 gexptr, uptr start_offset)
+static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)
 {
     if (gexptr == 0)
 	return 0;
     return start_offset + (gexptr >> 20) * 0x2000 + (gexptr & 0xFFFF) - 1;
 }
 
-static u32 prv_fscan_offset_to_gexptr(uptr offset, uptr file_start_offset)
+static u32 p_offset_to_gexptr(uptr offset, uptr file_start_offset)
 {
     offset -= file_start_offset;
     return ((offset >> 13) << 20) + (offset & 0x1FFF) + 1;

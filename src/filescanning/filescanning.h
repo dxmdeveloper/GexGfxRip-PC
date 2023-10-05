@@ -88,7 +88,7 @@ struct fscan_files {
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
-uint32_t fscan_read_infile_ptr(FILE *fp, uint32_t chunk_offset, jmp_buf *error_jmp_buf);
+uint32_t fscan_read_gexptr(FILE *fp, uint32_t chunk_offset, jmp_buf *error_jmp_buf);
 
 /** @brief fread wrapper with error handling.
            Jumps to error_jmp_buf if cannot read the values */

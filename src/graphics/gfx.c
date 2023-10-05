@@ -8,7 +8,7 @@
 
 //* STATIC DECLARATIONS:
 /// @param cpix_i index of pixel in chunk
-static void chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp);
+static void p_chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp);
 static void **calloc2D(u32 y, u32 x, u8 element_size);
 static void **malloc2D(u32 y, u32 x, u8 element_size);
 
@@ -337,7 +337,7 @@ u8 **gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8
 	    u16 x = chunk.rel_position_x + (i % chunk.width);
 
 	    image[y][x] = datap[i];
-	    chunk_rel_draw_pixel(image, &chunk, i, datap[i / (8 / bpp)], bpp);
+	    p_chunk_rel_draw_pixel(image, &chunk, i, datap[i / (8 / bpp)], bpp);
 	}
 
 	chunk = gex_gfxchunk_parse_aob(chunk_headers + (++chunk_i * 8));
@@ -456,7 +456,7 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
 		pixVal = bitmap_dat[(pix_ind + (i % 32 / bpp)) / (8 / bpp)];
 		break;
 	    }
-	    chunk_rel_draw_pixel(image, &chunk, pix_in_ch_ind, pixVal, bpp);
+	    p_chunk_rel_draw_pixel(image, &chunk, pix_in_ch_ind, pixVal, bpp);
 	    pix_in_ch_ind++;
 	}
 	if (optype == 1)
@@ -495,7 +495,7 @@ uint8_t gex_gfxheader_type_get_bpp(uint32_t typeSignature)
 // -----------------------------------------------------
 
 // draw pixel relative of chunk position
-static void chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp)
+static void p_chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp)
 {
     u16 y = chunk->rel_position_y + (cpix_i / chunk->width);
     u16 x = chunk->rel_position_x + (cpix_i % chunk->width);

@@ -5,5 +5,5 @@
 struct fscan_files;
 
 void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
-                      void cb(void * clientp, const void *headers, const void *bitmap,
-                              const struct gfx_palette *palette, uint16_t tileGfxId, uint16_t tileAnimFrameIndex));
+		      void cb(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette, uint16_t tileGfxId,
+			      uint16_t tileAnimFrameIndex));

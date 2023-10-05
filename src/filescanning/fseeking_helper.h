@@ -15,7 +15,7 @@
  * +(integer) or -(integer) - move file position by offset   
  * @return int EXIT_SUCCESS or EXIT_FAILURE.
  */
-int fscan_follow_pattern(fscan_file_chunk fileChunk[1], const char pattern[], jmp_buf * error_jmp_buf);
+int fscan_follow_pattern(fscan_file_chunk fileChunk[1], const char pattern[], jmp_buf *error_jmp_buf);
 
 /** @brief function made to speed up file seeking programming. recursive version.
   ** Internal variables:
@@ -40,12 +40,14 @@ int fscan_follow_pattern(fscan_file_chunk fileChunk[1], const char pattern[], jm
   * [ instructions ;n] for loop - n is a number of repeats. Will execute at least once.
   * [ instructions ; ] null gexptr terminated do while loop. Will execute code inside until G or D breaks the loop.
   */
-size_t fscan_follow_pattern_recur(fscan_file_chunk fChunk[1], const char pattern[], void * pass2cb,
-                                  int cb(fscan_file_chunk fChunk[1], gexdev_u32vec * iterVecp, uint32_t internalVars[INTERNAL_VAR_CNT], void * clientp), jmp_buf ** errbufpp);
+size_t fscan_follow_pattern_recur(fscan_file_chunk fChunk[1], const char pattern[], void *pass2cb,
+				  int cb(fscan_file_chunk fChunk[1], gexdev_u32vec *iterVecp, uint32_t internalVars[INTERNAL_VAR_CNT],
+					 void *clientp),
+				  jmp_buf **errbufpp);
 
 /// @brief finds end of scope by characters like } or ]
 /// @param str array of character starting with opening character
-const char * strFindScopeEnd(const char str[], char closeChar);
+const char *strFindScopeEnd(const char str[], char closeChar);
 
 /// @brief finds end of scope by characters like } or ] from inside of scope
-const char * strFindScopeEndFromInside(const char str[], char openChar, char closeChar);
+const char *strFindScopeEndFromInside(const char str[], char openChar, char closeChar);

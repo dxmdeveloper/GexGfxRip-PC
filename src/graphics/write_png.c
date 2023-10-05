@@ -23,8 +23,7 @@ void gfx_write_png(FILE *outfile, png_byte **image, const u32 width, const u32 h
     png_init_io(png_ptr, outfile);
 
     //Setting IHDR
-    png_set_IHDR(png_ptr, info_ptr, width, height, 8, type, PNG_INTERLACE_NONE,
-		 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_set_IHDR(png_ptr, info_ptr, width, height, 8, type, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
 
     if (pal) {
 	//Setting palette

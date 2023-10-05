@@ -4,8 +4,8 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define MIN(a,b) (((a)<(b))?(a):(b))
-#define MAX(a,b) (((a)>(b))?(a):(b))
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
 
 // typedef uint64_t u64;
 // typedef int64_t i64;
@@ -23,14 +23,14 @@ typedef struct u32pair_struct {
 } u32pair;
 
 #ifdef _WIN32
-    #define PATH_SEP "\\"
+#define PATH_SEP "\\"
 #else
-    #define PATH_SEP "/"
+#define PATH_SEP "/"
 #endif
 
 // detailed error log
 #ifdef DEBUG
-    #define dbg_errlog(str, ...) (fprintf(stderr, str, __VA_ARGS__))
+#define dbg_errlog(str, ...) (fprintf(stderr, str, __VA_ARGS__))
 #else
-    #define dbg_errlog(str, ...)
+#define dbg_errlog(str, ...)
 #endif
