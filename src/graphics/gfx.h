@@ -57,6 +57,15 @@ struct gfx_palette {
     uint16_t tRNS_count;
 };
 
+/** @brief structure with graphic properties */
+struct gfx_properties {
+    uint16_t pos_x;
+    uint16_t pos_y;
+    bool is_semi_transparent;
+    bool is_flipped_horizontally;
+    bool is_flipped_vertically;
+};
+
 // --- structures parsing ---
 /** @brief parses gfxHeader from input file stream. Shifts stream cursor. Function does not validate data!
     @return pointer to dest or null if failed to read stream */
