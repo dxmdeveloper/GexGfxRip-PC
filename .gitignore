@@ -8,3 +8,4 @@ vcpkg
 builddir/
 5*
 *.png
+.idea/
