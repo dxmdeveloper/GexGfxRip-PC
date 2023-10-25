@@ -33,6 +33,9 @@ add_executable(GexGfxRip_PC
         src/helpers/basicdefs.h
         src/helpers/binary_parse.h
         src/main.c
-        src/filescanning/filescanning_obj_gfx_and_bg.c)
+        src/filescanning/filescanning_obj_gfx_and_bg.c
+        src/helpers/xpgetopt/xpgetopt.c
+        src/helpers/xpgetopt/xpgetopt.h
+)
 
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})

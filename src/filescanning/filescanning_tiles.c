@@ -15,14 +15,14 @@ static u32 p_cb_tile_header_binds_compute_index(const void *key);
 /** @brief specific use function. Use as fscan_follow_pattern_recur's callback while scanning for tiles. 
   * @param tile_bmp_offsets_vecp array of 2 u32 vectors. First vector points where offsets of each block starts in second vector
   * @param bmp_index zero initialized array of 32 uints. Function keeps information from previous calls */
-static int p_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp[1], u32 tile_gfx_id, uint tile_anim_frame, uint block_ind,
+static int p_prep_tile_gfx_data_and_exec_cb(struct fscan_files_st files_stp[1], u32 tile_gfx_id, uint tile_anim_frame, uint block_ind,
 					    gexdev_ptr_map *bmp_headers_binds_map, const gexdev_u32vec tile_bmp_offsets_vecp[2],
 					    uint bmp_index[32], void *pass2cb,
 					    void cb(void *, const void *, const void *, const struct gfx_palette *, u16, u16));
 
 // ---------------- FUNC DEFINITIONS ----------------
 
-void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
+void fscan_tiles_scan(struct fscan_files_st *files_stp, void *pass2cb,
 		      void cb(void *clientp, const void *headerAndOpMap, const void *bitmap, const struct gfx_palette *palette,
 			      uint16_t tileGfxId, uint16_t tileAnimFrameI))
 {
@@ -88,11 +88,7 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
 	    longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
 
 	// base tile graphics
-	uint dbg_cnt = 0;
 	while (true) {
-	    if (i == 6 && dbg_cnt++ == 44)
-		i = 6;
-
 	    fread_LE_U32(&gfxid, 1, mchp->ptrs_fp);
 
 	    if (!p_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, 0, i, &bmp_headers_binds_map, tile_bmp_offsets, bmp_iters, pass2cb,
@@ -133,7 +129,7 @@ void fscan_tiles_scan(struct fscan_files *files_stp, void *pass2cb,
     FSCAN_ERRBUF_REVERT(errbufpp);
 }
 
-static int p_prep_tile_gfx_data_and_exec_cb(struct fscan_files files_stp[1], u32 tile_gfx_id, uint tile_anim_frame, uint block_ind,
+static int p_prep_tile_gfx_data_and_exec_cb(struct fscan_files_st files_stp[1], u32 tile_gfx_id, uint tile_anim_frame, uint block_ind,
 					    gexdev_ptr_map *bmp_headers_binds_map, const gexdev_u32vec tile_bmp_offsets_vecp[2],
 					    uint bmp_index[32], void *pass2cb,
 					    void cb(void *, const void *, const void *, const struct gfx_palette *, u16, u16))

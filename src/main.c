@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <png.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "helpers/basicdefs.h"
 #include "filescanning/filescanning.h"
 #include "graphics/write_png.h"
 #include "graphics/gfx.h"
+#include "helpers/xpgetopt/xpgetopt.h"
 
 #define FILE_COUNT_LIMIT 600000
 
@@ -30,6 +32,14 @@ struct onfound_pack {
     bool is_bg_dir_created;
 };
 
+enum GFX_TYPE_ENUM {
+    TYPE_ALL,
+    TYPE_TILES,
+    TYPE_OBJECTS,
+    TYPE_INTRO,
+    TYPE_BACKGROUNDS,
+};
+
 static void cb_on_tile_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette, u16 tileGfxID,
 			     u16 tileAnimFrameI);
 static void cb_on_obj_gfx_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
@@ -39,24 +49,67 @@ static void cb_on_intro_obj_found(void *clientp, const void *headers, const void
 static void cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
 				    u32 iterations[static 4], struct gfx_properties *);
 
-void printUsageHelp()
+static int strcmp_ci(const char *str1, const char *str2)
 {
-    printf("USAGE: ." PATH_SEP "gexgfxrip [path to file]\n");
+    while (*str1 && *str2 && tolower(*str1) == tolower(*str2))
+	str1++, str2++;
+    return *str1 - *str2;
+}
+
+static void printUsageHelp()
+{
+    printf("Usage: gexgfxrip [OPTION]... [FILE]\n");
+    printf("Extracts graphics from Gex (PC) game files.\n");
+    printf("  -h, --help\t\t\tPrint this help message and exit\n");
+    printf("  -v, --verbose\t\t\tVerbose output\n");
+    printf("  -t, --type=TYPE\t\t\tType of graphics to extract\n");
+    printf("\t\t\t TYPE is 'all' (default), 'tiles', 'objects', 'intro' or 'backgrounds'\n");
 }
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[])
 {
-    struct fscan_files fscan_files_st = { 0 };
+    struct fscan_files_st fscan_files_st = { 0 };
     struct application_options options = { 0 };
     char odirname[256];
     jmp_buf errbuf;
-    jmp_buf *errbufp;
     int errno = 0;
+    int type = TYPE_ALL;
 
-    //! TEMPORARY HERE
-    fscan_files_st.option_verbose = true;
+    // Application options
+    struct xpoption options_table[] = {
+	{ "help", no_argument, NULL, 'h' },
+	{ "verbose", no_argument, NULL, 'v' },
+    };
 
+    switch (xpgetopt_long(argc, argv, "hvt:", options_table, NULL)) {
+    case 'h':
+	printUsageHelp();
+	return 0;
+    case 'v':
+	fscan_files_st.option_verbose = true;
+	break;
+    case '?':
+	printUsageHelp();
+	return 1;
+    case 't':
+	if (strcmp_ci(xpoptarg, "all") == 0)
+	    type = TYPE_ALL; // default
+	else if (strcmp_ci(xpoptarg, "tiles") == 0)
+	    type = TYPE_TILES;
+	else if (strcmp_ci(xpoptarg, "objects") == 0)
+	    type = TYPE_OBJECTS;
+	else if (strcmp_ci(xpoptarg, "intro") == 0)
+	    type = TYPE_INTRO;
+	else if (strcmp_ci(xpoptarg, "backgrounds") == 0)
+	    type = TYPE_BACKGROUNDS;
+	else {
+	    fprintf(stderr, "error: unknown type '%s'\n", xpoptarg);
+	    return 1;
+	}
+    }
+
+    // setjmp error handling
     if ((errno = setjmp(errbuf))) {
 	fprintf(stderr, "error while scanning file %i", errno);
 	fscan_files_close(&fscan_files_st);
@@ -64,7 +117,7 @@ int main(int argc, char *argv[])
     }
 
     // if no additional program arguments or asterisk
-    if (argc == 1 || strcmp(argv[argc - 1], "*") == 0) {
+    if (argc == 1) {
 	char ifilename[11];
 	for (u8 fileI = 0; fileI < 255; fileI++) {
 	    struct onfound_pack pack = { &options, 0 };
@@ -81,35 +134,39 @@ int main(int argc, char *argv[])
 	    options.save_path = odirname;
 
 	    if (fscan_files_init(&fscan_files_st, ifilename) >= 0) {
-		if (fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
+		if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
 		    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
-		if (fscan_files_st.main_chunk.ptrs_fp)
+		if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
 		    fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
-		if (fscan_files_st.intro_chunk.ptrs_fp)
+		if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
 		    fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
-		if (fscan_files_st.bg_chunk.ptrs_fp)
+		if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
 		    fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
 
 		fscan_files_close(&fscan_files_st);
 	    }
 	}
     } else {
-	if (fscan_files_init(&fscan_files_st, argv[argc - 1]) >= 0) {
-	    // output directory name
-	    struct onfound_pack pack = { &options, 0 };
-	    sprintf(odirname, "%s-rip/", argv[argc - 1]);
-	    options.save_path = odirname;
+	for (int i = xpoptind; i < argc; i++) {
+	    if (fscan_files_init(&fscan_files_st, argv[xpoptind]) >= 0) {
+		// output directory name
+		struct onfound_pack pack = { &options, 0 };
+		sprintf(odirname, "%s-rip/", argv[xpoptind]);
+		options.save_path = odirname;
 
-	    if (fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
-		fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
-	    if (fscan_files_st.main_chunk.ptrs_fp)
-		fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
-	    if (fscan_files_st.intro_chunk.ptrs_fp)
-		fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
-	    if (fscan_files_st.bg_chunk.ptrs_fp)
-		fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
+		if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
+		    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
+		if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
+		    fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
+		if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
+		    fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
+		if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
+		    fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
 
-	    fscan_files_close(&fscan_files_st);
+		fscan_files_close(&fscan_files_st);
+	    } else {
+		fprintf(stderr, "error: failed to open file %s\n", argv[xpoptind]);
+	    }
 	}
     }
     return 0;

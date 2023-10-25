@@ -1,0 +1,3 @@
+[submodule "xpGetopt"]
+	path = src/helpers/xpgetopt
+	url = https://github.com/dxmdeveloper/xpGetopt

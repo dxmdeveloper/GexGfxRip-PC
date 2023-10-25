@@ -70,7 +70,7 @@ typedef struct fscan_file_chunk_structure {
     uint32_t ep;
 } fscan_file_chunk;
 
-struct fscan_files {
+typedef struct fscan_files_st {
     fscan_file_chunk tile_chunk;
     fscan_file_chunk bitmap_chunk;
     fscan_file_chunk bg_chunk;
@@ -84,7 +84,7 @@ struct fscan_files {
     bool option_verbose;
 
     jmp_buf *error_jmp_buf;
-};
+} fscan_files;
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
@@ -97,8 +97,8 @@ size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_j
 /** @brief initializes fscan_files structure. Opens one file in read mode multiple times and sets it at start position.
     @return enum fscan_level_type with bit flags */
 // filesStp->error_jmp_buf MUST be set before or after initialization
-int fscan_files_init(struct fscan_files *files_stp, const char filename[]);
-void fscan_files_close(struct fscan_files *files_stp);
+int fscan_files_init(struct fscan_files_st *files_stp, const char filename[]);
+void fscan_files_close(struct fscan_files_st *files_stp);
 
 /////** @brief checks file pointers for errors and eofs. if at least one has an error or eof flag jumps to error_jmp_buf
 ////    @param mode 0 - check all, 1 - check only ptrsFps, 2 - check only dataFps */
@@ -134,3 +134,8 @@ uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_bu
  * @param dest_size size of dest array. Minimum allowed value is 1, but should be minimum 2
  * @return count of read pointers */
 size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], size_t dest_size, jmp_buf(*errbufp));
+
+/** @brief search bitmap chunk for bitmap of game objects and background tiles and pushes offsets to files_stp->ext_bmp_offsets vector
+ *  Will not search at all if the chunk is missing or is already scanned.
+ *  @return Pointer to files_stp->ext_bmp_offsets. */
+const gexdev_u32vec *fscan_search_for_ext_bmps(struct fscan_files_st *files_stp);

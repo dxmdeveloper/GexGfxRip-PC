@@ -34,7 +34,7 @@ static inline int p_files_init_open_and_set(const char filename[], FILE *general
     return 0;
 }
 
-int fscan_files_init(struct fscan_files *files_stp, const char filename[])
+int fscan_files_init(struct fscan_files_st *files_stp, const char filename[])
 {
     FILE *fp = NULL;
     u32 fchunkcnt = 0;
@@ -128,7 +128,7 @@ int fscan_files_init(struct fscan_files *files_stp, const char filename[])
     return retval;
 }
 
-void fscan_files_close(struct fscan_files *files_stp)
+void fscan_files_close(struct fscan_files_st *files_stp)
 {
     if (files_stp->tile_chunk.ptrs_fp) {
 	fclose(files_stp->tile_chunk.ptrs_fp);
@@ -320,6 +320,38 @@ size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], 
 	}
     dest[dest_size - 2] = 0;
     return dest_size - 1;
+}
+
+const gexdev_u32vec *fscan_search_for_ext_bmps(struct fscan_files_st *files_stp){
+    u32 block_offsets[6] = { 0 };
+    jmp_buf *errbufp = files_stp->error_jmp_buf;
+
+    if(files_stp->used_fchunks_arr[2] || !files_stp->bitmap_chunk.ptrs_fp)
+	return &files_stp->ext_bmp_offsets;
+
+    fseek(files_stp->bitmap_chunk.ptrs_fp, files_stp->bitmap_chunk.ep, SEEK_SET);
+
+    for (int i = 0; i < 6; i++) {
+	block_offsets[i] = fscan_read_gexptr(files_stp->bitmap_chunk.ptrs_fp, files_stp->bitmap_chunk.offset, errbufp);
+    }
+
+    for (int i = 0; i < 6; i++) {
+	u32 bmp_offsets[256] = { 0 };
+	if (!block_offsets[i])
+	    continue;
+	fseek(files_stp->bitmap_chunk.ptrs_fp, block_offsets[i], SEEK_SET);
+	fscan_read_gexptr_null_term_arr(&files_stp->bitmap_chunk, bmp_offsets, 256, errbufp);
+	for (int ii = 0; ii < 256 && bmp_offsets[ii]; ii++) {
+	    u16 wh[2] = { 0 };
+	    fseek(files_stp->bitmap_chunk.data_fp, bmp_offsets[ii], SEEK_SET);
+	    if(fread_LE_U16(wh, 2, files_stp->bitmap_chunk.data_fp) != 2)
+		longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
+
+	    if (wh[0] && wh[1])
+		gexdev_u32vec_push_back(&files_stp->ext_bmp_offsets, bmp_offsets[ii]);
+	}
+    }
+    return &files_stp->ext_bmp_offsets;
 }
 
 static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)
