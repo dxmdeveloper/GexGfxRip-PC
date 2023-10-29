@@ -2,17 +2,18 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-typedef struct _gexdev_tools_u32vector_structure {
+typedef struct _gexdev_essentials_u32vector_structure {
     size_t size;
     size_t capacity;
     uint32_t *v;
 } gexdev_u32vec;
 
-typedef struct _gexdev_tools_uptrvector_structure {
+typedef struct _gexdev_essentials_univector_structure {
     size_t size;
     size_t capacity;
-    void **v;
-} gexdev_uptrvec;
+    size_t element_size;
+    void *v;
+} gexdev_univec;
 
 ///@return EXIT_SUCCESS or EXIT_FAILURE
 int gexdev_u32vec_init_size(gexdev_u32vec *vecp, size_t size);
@@ -32,15 +33,16 @@ void gexdev_u32vec_pop_back(gexdev_u32vec *vecp);
   * In that case no value is increased. New elements are 0 initialized. */
 void gexdev_u32vec_ascounter_inc(gexdev_u32vec *vecp, size_t index);
 
-///@return EXIT_SUCCESS or EXIT_FAILURE
-int gexdev_uptrvec_init_size(gexdev_uptrvec *vecp, size_t size);
+// --------------------------------------------------------------------------- //
+/// @return EXIT_SUCCESS or EXIT_FAILURE
+int gexdev_univec_init_size(gexdev_univec *vecp, size_t size, size_t element_size);
 
-///@return EXIT_SUCCESS or EXIT_FAILURE
-int gexdev_uptrvec_init_capcity(gexdev_uptrvec *vecp, size_t capacity);
+/// @return EXIT_SUCCESS or EXIT_FAILURE
+int gexdev_univec_init_capcity(gexdev_univec *vecp, size_t capacity, size_t element_size);
 
-void gexdev_uptrvec_close(gexdev_uptrvec *vecp);
+void gexdev_univec_close(gexdev_univec *vecp);
 
-///@return EXIT_SUCCESS or EXIT_FAILURE
-int gexdev_uptrvec_push_back(gexdev_uptrvec *vecp, void *val);
+/// @return EXIT_SUCCESS or EXIT_FAILURE
+int gexdev_univec_push_back(gexdev_univec *vecp, const void *val);
 
-void gexdev_uptrvec_pop_back(gexdev_uptrvec *vecp);
+void gexdev_univec_pop_back(gexdev_univec *vecp);

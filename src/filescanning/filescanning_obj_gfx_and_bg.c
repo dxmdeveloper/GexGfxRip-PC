@@ -264,6 +264,8 @@ inline static void p_scan_chunk_for_obj_gfx(fscan_files *files_stp, fscan_file_c
 		    uint iters[4] = { i, ii, iii, iv };
 
 		    fseek(fchp->ptrs_fp, combined_gfx_offset[iv], SEEK_SET);
+		    // TODO: Use filestp->obj_gfx_offsets vector.
+		    // TODO: This function will not call p_prep_obj_gfx_and_exec_cb nor have cb as argument.
 		    p_prep_obj_gfx_and_exec_cb(files_stp, fchp, pass2cb, cb, &bmp_headers_binds_map, &ibuf, iters);
 		}
 	    }

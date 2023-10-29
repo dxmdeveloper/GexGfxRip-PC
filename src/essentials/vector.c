@@ -1,3 +1,4 @@
+#include <memory.h>
 #include "vector.h"
 
 int gexdev_u32vec_init_size(gexdev_u32vec *vecp, size_t size)
@@ -32,9 +33,10 @@ void gexdev_u32vec_close(gexdev_u32vec *vecp)
 int gexdev_u32vec_push_back(gexdev_u32vec *vecp, uint32_t val)
 {
     if (vecp->size == vecp->capacity) {
-	vecp->v = realloc(vecp->v, vecp->capacity * 2 * 4);
-	if (!vecp->v)
+	void *new_v = realloc(vecp->v, vecp->capacity * 2 * 4);
+	if (!new_v)
 	    return EXIT_FAILURE;
+	vecp->v = new_v;
 	vecp->capacity *= 2;
     }
     vecp->v[vecp->size] = val;
@@ -61,51 +63,47 @@ void gexdev_u32vec_ascounter_inc(gexdev_u32vec *vecp, size_t index)
 	}
 }
 
-int gexdev_uptrvec_init_size(gexdev_uptrvec *vecp, size_t size)
+int gexdev_univec_init_size(gexdev_univec *vecp, size_t size, size_t element_size)
 {
     size_t cap = (size ? size : 1);
-    vecp->v = calloc(cap, sizeof(void *));
+    vecp->v = calloc(cap, element_size);
     if (!vecp->v)
 	return EXIT_FAILURE;
     vecp->capacity = cap;
     vecp->size = size;
+    vecp->element_size = element_size;
     return EXIT_SUCCESS;
 }
 
-int gexdev_uptrvec_init_capcity(gexdev_uptrvec *vecp, size_t capacity)
+int gexdev_univec_init_capcity(gexdev_univec *vecp, size_t capacity, size_t element_size)
 {
     if (!capacity)
 	return EXIT_FAILURE;
-    vecp->v = malloc(capacity * sizeof(void *));
+    vecp->v = malloc(capacity * element_size);
     if (!vecp->v)
 	return EXIT_FAILURE;
     vecp->capacity = capacity;
     vecp->size = 0;
+    vecp->element_size = element_size;
     return EXIT_SUCCESS;
 }
 
-void gexdev_uptrvec_close(gexdev_uptrvec *vecp)
+void gexdev_univec_close(gexdev_univec *vecp)
 {
     if (vecp->v)
 	free(vecp->v);
 }
 
-int gexdev_uptrvec_push_back(gexdev_uptrvec *vecp, void *val)
+int gexdev_univec_push_back(gexdev_univec *vecp, const void *val)
 {
     if (vecp->size == vecp->capacity) {
-	vecp->v = realloc(vecp->v, vecp->capacity * 2 * 4);
-	if (!vecp->v)
+	void *new_v = realloc(vecp->v, vecp->capacity * 2 * vecp->element_size);
+	if (!new_v)
 	    return EXIT_FAILURE;
+	vecp->v = new_v;
 	vecp->capacity *= 2;
     }
-    vecp->v[vecp->size] = val;
+    memcpy(vecp->v + vecp->size * vecp->element_size, val, vecp->element_size);
     vecp->size++;
     return EXIT_SUCCESS;
-}
-
-void gexdev_uptrvec_pop_back(gexdev_uptrvec *vecp)
-{
-    if (vecp->size == 0)
-	return;
-    vecp->size--;
 }

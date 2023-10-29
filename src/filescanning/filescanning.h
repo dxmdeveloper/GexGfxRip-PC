@@ -47,7 +47,8 @@ enum fscan_level_type_enum {
     FSCAN_LEVEL_TYPE_GFX_ONLY = 1,
     FSCAN_LEVEL_FLAG_NO_TILES = 1 << 1,
     FSCAN_LEVEL_FLAG_NO_MAIN = 1 << 2,
-    FSCAN_LEVEL_FLAG_NO_BACKGROUND = 1 << 3,
+    FSCAN_LEVEL_FLAG_NO_INTRO = 1 << 3,
+    FSCAN_LEVEL_FLAG_NO_BACKGROUND = 1 << 4,
 };
 
 enum fscan_errno_enum {
@@ -79,12 +80,21 @@ typedef struct fscan_files_st {
 
     uint32_t ext_bmp_index;
     gexdev_u32vec ext_bmp_offsets;
-    bool used_fchunks_arr[6];
+    gexdev_univec obj_gfx_offsets; // vector of fscan_gfx_loc_info
+    gexdev_univec intro_gfx_offsets; // vector of fscan_gfx_loc_info
+    gexdev_univec bg_gfx_offsets; // vector of fscan_gfx_loc_info
 
     bool option_verbose;
 
     jmp_buf *error_jmp_buf;
 } fscan_files;
+
+typedef struct fscan_gfx_loc_info_st {
+    uint32_t offset;
+    uint32_t ext_bmp_index;
+
+    uint8_t iteration[4];
+} fscan_gfx_loc_info;
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
