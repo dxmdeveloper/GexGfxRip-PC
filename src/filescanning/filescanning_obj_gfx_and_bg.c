@@ -11,129 +11,138 @@
 
 typedef void (*onfound_cb_t)(void *, const void *, const void *, const struct gfx_palette *, u32 *, struct gfx_properties *);
 typedef gexdev_u32vec vec32;
+typedef gexdev_univec univec;
 
 // _________________________________ static function declarations _________________________________
 static u32 p_cb_bmp_header_binds_compute_index(const void *key);
-static int p_cb_flwpat_push_offset(fscan_file_chunk fChunk[1], vec32 *iterVecp, u32 *internalVars, void *clientp);
-static int p_cb_ext_bmp_index_count(fscan_file_chunk fChunk[1], vec32 *iterVecp, u32 *iv, void *clientp);
 static int p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
 				      gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]);
-inline static void p_scan_chunk_for_obj_gfx(fscan_files *files_stp, fscan_file_chunk *fchp, bool dont_prep_gfx_data, void *pass2cb,
-					    onfound_cb_t cb);
+
+/** @brief adds offsets of graphic entries (structure with properties, header and palette offsets) to vecp vector.
+ *  Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_index if such bitmap is found.*/
+static void p_add_offsets_to_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp, uint iters[4]);
+
+inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec offvec[1]);
 
 // _____________________________________ function definitions _____________________________________
-
-void fscan_obj_gfx_scan(fscan_files *files_stp, void *pass2cb, onfound_cb_t cb)
-{
-    if (files_stp->option_verbose)
-	printf("------------- object scan -------------\n");
-
-    if (files_stp->used_fchunks_arr[2])
-	files_stp->ext_bmp_index = 0;
-
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, false, pass2cb, cb);
-
-    files_stp->used_fchunks_arr[3] = true;
-}
-
-void fscan_intro_obj_gfx_scan(fscan_files *files_stp, void *pass2cb, onfound_cb_t cb)
-{
-    if (files_stp->option_verbose)
-	printf("----------- intro object scan ----------\n");
-
-    if (files_stp->used_fchunks_arr[4] || files_stp->used_fchunks_arr[5])
-	files_stp->ext_bmp_index = 0;
-
-    if (!files_stp->ext_bmp_index && files_stp->main_chunk.ptrs_fp) {
-	p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, true, NULL, NULL);
-
-	files_stp->used_fchunks_arr[3] = true;
-    }
-
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, false, pass2cb, cb);
-    files_stp->used_fchunks_arr[4] = true;
-}
-
-void fscan_background_scan(fscan_files *files_stp, void *pass2cb, onfound_cb_t cb)
-{
-    if (files_stp->option_verbose)
-	printf("------------ background scan ------------\n");
-
-    if (files_stp->used_fchunks_arr[5]) {
-	files_stp->ext_bmp_index = 0;
-	files_stp->used_fchunks_arr[3] = false;
-	files_stp->used_fchunks_arr[4] = false;
-    }
-    // Scan main and intro chunks before if not scanned yet
-    if (!files_stp->used_fchunks_arr[3] && files_stp->main_chunk.ptrs_fp) {
-	p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, true, NULL, NULL);
-	files_stp->used_fchunks_arr[3] = true;
-    }
-    if (!files_stp->used_fchunks_arr[4] && files_stp->intro_chunk.ptrs_fp) {
-	p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, true, NULL, NULL);
-	files_stp->used_fchunks_arr[4] = true;
-    }
-
-    // Scan background file chunk
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->bg_chunk, false, pass2cb, cb);
-
-    files_stp->used_fchunks_arr[5] = true;
-}
 
 static u32 p_cb_bmp_header_binds_compute_index(const void *key)
 {
     return *(const u32 *)key / 32;
 }
 
-static int p_cb_flwpat_push_offset(fscan_file_chunk fChunk[1], gexdev_u32vec *iterVecp, u32 *internalVars, void *clientp)
+size_t fscan_obj_gfx_scan(fscan_files *files_stp)
 {
-    u32 offset = fscan_read_gexptr(fChunk->ptrs_fp, fChunk->offset, NULL);
-    u16 wh[2] = { 0 };
-    if (!offset)
+    if (!files_stp->main_chunk.ptrs_fp)
 	return 0;
-    fseek(fChunk->data_fp, offset, SEEK_SET);
-    fread_LE_U16(wh, 2, fChunk->data_fp);
-    if (wh[0] && wh[1])
-	gexdev_u32vec_push_back(clientp, offset);
-    return 1;
+
+    if (files_stp->option_verbose)
+	printf("------------- object scan -------------\n");
+
+    files_stp->ext_bmp_index = 0;
+    files_stp->obj_gfx_offsets.size = 0;
+
+    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, NULL);
 }
 
-// TODO: REIMPLEMENT
-/*
-static int p_cb_ext_bmp_index_count(fscan_file_chunk fChunk[1], gexdev_u32vec *iterVecp, u32 *iv, void *clientp)
+size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp)
 {
-    struct obj_gfx_scan_pack *packp = clientp;
-    u32 headerOffset = fscan_read_gexptr(fChunk->ptrs_fp, fChunk->offset, NULL);
-    u8 gfxType = 0;
-    void *headerData = NULL;
-    fseek(fChunk->ptrs_fp, headerOffset + 16, SEEK_SET);
-    fread(&gfxType, 1, 1, fChunk->ptrs_fp);
-    if ((gfxType & 0xF0) != 0xC0)
-	return 1;
+    if (!files_stp->intro_chunk.ptrs_fp)
+	return 0;
 
-    fseek(fChunk->data_fp, headerOffset, SEEK_SET);
-    if (!gfx_read_headers_alloc_aob(fChunk->data_fp, &headerData)) {
-	packp->files_stp->ext_bmp_index++;
-	return 1;
+    if (files_stp->option_verbose)
+	printf("----------- intro object scan ----------\n");
+
+    // Scan main chunk before if not scanned yet
+    if (!files_stp->obj_gfx_offsets.size || files_stp->intro_gfx_offsets.size) {
+	fscan_obj_gfx_scan(files_stp);
     }
+    files_stp->obj_gfx_offsets.size = 0;
 
-    u32 relOffset = headerOffset - fChunk->offset;
-    if (gexdev_ptr_map_get(packp->bmp_headers_binds_mapp, &relOffset)) {
-	if (headerData)
-	    free(headerData);
-	return 1;
-    }
-
-    for (void *gch = headerData + 20; *(u32 *)gch; gch += 8) {
-	packp->files_stp->ext_bmp_index++;
-    }
-
-    gexdev_ptr_map_set(packp->bmp_headers_binds_mapp, &relOffset, malloc(1));
-    if (headerData)
-	free(headerData);
-    return 1;
+    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, NULL);
 }
- */
+
+size_t fscan_background_scan(fscan_files *files_stp)
+{
+    if (!files_stp->bg_chunk.ptrs_fp)
+	return 0;
+
+    if (files_stp->option_verbose)
+	printf("------------ background scan ------------\n");
+
+    if (files_stp->obj_gfx_offsets.size == 0)
+	fscan_obj_gfx_scan(files_stp);
+
+    if (files_stp->intro_gfx_offsets.size == 0)
+	fscan_intro_obj_gfx_scan(files_stp);
+
+    files_stp->bg_gfx_offsets.size = 0;
+
+    // Scan background file chunk
+    size_t total = 0;
+    // TODO: scanning implementation
+
+    return total;
+}
+
+inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec offvec[1])
+{
+    jmp_buf **errbufpp = &files_stp->error_jmp_buf;
+    FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "p_scan_chunk_for_obj_gfx error\n");)
+
+    // search for bitmaps in bitmap chunk. The function below will not rescan the chunk if it was already scanned
+    fscan_search_for_ext_bmps(files_stp);
+
+    /* main chunk scan start */
+    uint ibuf = 0;
+    size_t total = 0;
+    u32 obj_offsets[256] = { 0 };
+
+    fseek(fchp->ptrs_fp, fchp->ep + 0x20, SEEK_SET);
+
+    fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
+    fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
+
+    fscan_read_gexptr_null_term_arr(fchp, obj_offsets, 256, *errbufpp);
+
+    for (uint i = 0; i < 256 && obj_offsets[i]; i++) {
+	u32 anim_set_offset[128] = { 0 };
+	// omit offsets of odd iterations
+	if (i % 2)
+	    continue;
+
+	fseek(fchp->ptrs_fp, obj_offsets[i], SEEK_SET);
+	fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
+
+	fscan_read_gexptr_null_term_arr(fchp, anim_set_offset, 128, *errbufpp);
+
+	for (uint ii = 0; ii < 128 && anim_set_offset[ii]; ii++) {
+	    u32 anim_frame_offset[128] = { 0 };
+
+	    fseek(fchp->ptrs_fp, anim_set_offset[ii], SEEK_SET);
+	    fscan_read_gexptr_null_term_arr(fchp, anim_frame_offset, 128, *errbufpp);
+	    for (uint iii = 0; iii < 128 && anim_frame_offset[iii]; iii++) {
+		u32 combined_gfx_offset[128] = { 0 };
+
+		fseek(fchp->ptrs_fp, anim_frame_offset[iii] + 24, SEEK_SET);
+		fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
+
+		fscan_read_gexptr_null_term_arr(fchp, combined_gfx_offset, 128, *errbufpp);
+		for (uint iv = 0; iv < 128 && combined_gfx_offset[iv]; iv++) {
+		    uint iters[4] = { i, ii, iii, iv };
+
+		    fseek(fchp->ptrs_fp, combined_gfx_offset[iv], SEEK_SET);
+		    p_add_offsets_to_vec(files_stp, fchp, offvec, iters);
+		    total++;
+		}
+	    }
+	}
+    }
+
+    // cleanup
+    FSCAN_ERRBUF_REVERT(errbufpp);
+    return total;
+}
 
 static int p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
 				      gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4])
@@ -150,8 +159,7 @@ static int p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk
     struct gfx_properties gfx_props = { 0 };
 
     // error handling
-    FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "p_prep_obj_gfx_and_exec_cbfread error\n");
-			   if (header_and_bmp) free(header_and_bmp);)
+    FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "p_prep_obj_gfx_and_exec_cbfread error\n"); if (header_and_bmp) free(header_and_bmp);)
 
     // graphic properties read
     fread_LE_U16(&gfx_props.pos_y, 1, main_chp->ptrs_fp);
@@ -213,67 +221,25 @@ static int p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk
     return 1;
 }
 
-// TODO: Do something with dont_prep_gfx_data
-inline static void p_scan_chunk_for_obj_gfx(fscan_files *files_stp, fscan_file_chunk *fchp, bool dont_prep_gfx_data, void *pass2cb,
-					    onfound_cb_t cb)
+void p_add_offsets_to_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp, uint iters[4])
 {
-    gexdev_ptr_map bmp_headers_binds_map = { 0 };
-    gexdev_ptr_map_init(&bmp_headers_binds_map, fchp->size, p_cb_bmp_header_binds_compute_index);
+    u32 *extind = &files_stp->ext_bmp_index;
+    u32 type = 0;
+    struct fscan_gfx_loc_info_st gfx_loc_info = { ftell(fchp->ptrs_fp), ~0, { iters[0], iters[1], iters[2], iters[3] } };
 
-    jmp_buf **errbufpp = &files_stp->error_jmp_buf;
-    FSCAN_ERRBUF_CHAIN_ADD(errbufpp, gexdev_ptr_map_close_all(&bmp_headers_binds_map);)
+    fseek(fchp->ptrs_fp, 8, SEEK_CUR);
+    fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);
 
-    // search for bitmaps in bitmap chunk. The function below will not rescan the chunk if it was already scanned
-    fscan_search_for_ext_bmps(files_stp);
+    if (!fread_LE_U32(&type, 1, fchp->ptrs_fp))
+	longjmp(*files_stp->error_jmp_buf, FSCAN_READ_ERROR_FREAD);
 
-    /* main chunk scan start */
-    uint ibuf = 0;
-    u32 obj_offsets[256] = { 0 };
+    if ((type & 0xF0) == 0xC0) {
+	struct gex_gfxchunk gchunk = { 0 };
+	gfx_loc_info.ext_bmp_index = files_stp->ext_bmp_index;
 
-    fseek(fchp->ptrs_fp, fchp->ep + 0x20, SEEK_SET);
-
-    fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
-    fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
-
-    fscan_read_gexptr_null_term_arr(fchp, obj_offsets, 256, *errbufpp);
-
-    for (uint i = 0; i < 256 && obj_offsets[i]; i++) {
-	u32 anim_set_offset[128] = { 0 };
-	// omit offsets of odd iterations
-	if (i % 2)
-	    continue;
-
-	fseek(fchp->ptrs_fp, obj_offsets[i], SEEK_SET);
-	fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
-
-	fscan_read_gexptr_null_term_arr(fchp, anim_set_offset, 128, *errbufpp);
-
-	for (uint ii = 0; ii < 128 && anim_set_offset[ii]; ii++) {
-	    u32 anim_frame_offset[128] = { 0 };
-
-	    fseek(fchp->ptrs_fp, anim_set_offset[ii], SEEK_SET);
-	    fscan_read_gexptr_null_term_arr(fchp, anim_frame_offset, 128, *errbufpp);
-	    for (uint iii = 0; iii < 128 && anim_frame_offset[iii]; iii++) {
-		u32 combined_gfx_offset[128] = { 0 };
-
-		fseek(fchp->ptrs_fp, anim_frame_offset[iii] + 24, SEEK_SET);
-		fscan_read_gexptr_and_follow(fchp, 0, *errbufpp);
-
-		fscan_read_gexptr_null_term_arr(fchp, combined_gfx_offset, 128, *errbufpp);
-		for (uint iv = 0; iv < 128 && combined_gfx_offset[iv]; iv++) {
-		    uint iters[4] = { i, ii, iii, iv };
-
-		    fseek(fchp->ptrs_fp, combined_gfx_offset[iv], SEEK_SET);
-		    // TODO: Use filestp->obj_gfx_offsets vector.
-		    // TODO: This function will not call p_prep_obj_gfx_and_exec_cb nor have cb as argument.
-		    p_prep_obj_gfx_and_exec_cb(files_stp, fchp, pass2cb, cb, &bmp_headers_binds_map, &ibuf, iters);
-		}
-	    }
+	for (uint i = 0; gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk) && i < IMG_CHUNKS_LIMIT; i++, extind[0]++) {
 	}
     }
 
-    files_stp->used_fchunks_arr[2] = true;
-    // cleanup
-    gexdev_ptr_map_close_all(&bmp_headers_binds_map);
-    FSCAN_ERRBUF_REVERT(errbufpp);
+    gexdev_univec_push_back(vecp, &gfx_loc_info);
 }

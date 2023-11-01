@@ -42,8 +42,6 @@ int fscan_files_init(struct fscan_files_st *files_stp, const char filename[])
     int retval = 0;
 
     // zeroing members
-    for (uint i = 0; i < 6; i++)
-	files_stp->used_fchunks_arr[i] = false;
     files_stp->ext_bmp_index = 0;
 
     if (gexdev_u32vec_init_capcity(&files_stp->ext_bmp_offsets, 256))
@@ -324,7 +322,7 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(struct fscan_files_st *files_stp)
     u32 block_offsets[6] = { 0 };
     jmp_buf *errbufp = files_stp->error_jmp_buf;
 
-    if (files_stp->used_fchunks_arr[2] || !files_stp->bitmap_chunk.ptrs_fp)
+    if (files_stp->ext_bmp_offsets.size || !files_stp->bitmap_chunk.ptrs_fp)
 	return &files_stp->ext_bmp_offsets;
 
     fseek(files_stp->bitmap_chunk.ptrs_fp, files_stp->bitmap_chunk.ep, SEEK_SET);

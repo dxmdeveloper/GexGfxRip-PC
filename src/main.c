@@ -137,11 +137,11 @@ int main(int argc, char *argv[])
 		if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
 		    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
 		if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
-		    fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
+		    fscan_obj_gfx_scan(&fscan_files_st);
 		if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
-		    fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
+		    fscan_intro_obj_gfx_scan(&fscan_files_st);
 		if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
-		    fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
+		    fscan_background_scan(&fscan_files_st);
 
 		fscan_files_close(&fscan_files_st);
 	    }
@@ -157,11 +157,11 @@ int main(int argc, char *argv[])
 		if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp && fscan_files_st.main_chunk.ptrs_fp)
 		    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
 		if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
-		    fscan_obj_gfx_scan(&fscan_files_st, &pack, cb_on_obj_gfx_found);
+		    fscan_obj_gfx_scan(&fscan_files_st);
 		if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
-		    fscan_intro_obj_gfx_scan(&fscan_files_st, &pack, cb_on_intro_obj_found);
+		    fscan_intro_obj_gfx_scan(&fscan_files_st);
 		if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
-		    fscan_background_scan(&fscan_files_st, &pack, cb_on_backgrounds_found);
+		    fscan_background_scan(&fscan_files_st);
 
 		fscan_files_close(&fscan_files_st);
 	    } else {

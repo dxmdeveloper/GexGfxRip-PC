@@ -22,6 +22,7 @@ static int p_prep_tile_gfx_data_and_exec_cb(struct fscan_files_st files_stp[1], 
 
 // ---------------- FUNC DEFINITIONS ----------------
 
+// TODO: reimplement this like fscan_obj_gfx_scan. Collect offsets first.
 void fscan_tiles_scan(struct fscan_files_st *files_stp, void *pass2cb,
 		      void cb(void *clientp, const void *headerAndOpMap, const void *bitmap, const struct gfx_palette *palette,
 			      uint16_t tileGfxId, uint16_t tileAnimFrameI))
