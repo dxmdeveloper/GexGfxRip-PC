@@ -1,6 +1,5 @@
-#include "filescanning_tiles.h"
+#include "tiles.h"
 #include "filescanning.h"
-#include "fseeking_helper.h"
 #include "../helpers/basicdefs.h"
 #include "../graphics/gfx.h"
 #include "../helpers/binary_parse.h"

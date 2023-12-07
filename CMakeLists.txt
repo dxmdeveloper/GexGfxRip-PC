@@ -20,10 +20,10 @@ add_executable(GexGfxRip_PC
         src/essentials/vector.h
         src/filescanning/filescanning.c
         src/filescanning/filescanning.h
-        src/filescanning/filescanning_obj_gfx_and_bg.c
-        src/filescanning/filescanning_obj_gfx_and_bg.h
-        src/filescanning/filescanning_tiles.c
-        src/filescanning/filescanning_tiles.h
+        src/filescanning/obj_gfx_and_bg.c
+        src/filescanning/obj_gfx_and_bg.h
+        src/filescanning/tiles.c
+        src/filescanning/tiles.h
         src/filescanning/fseeking_helper.c
         src/filescanning/fseeking_helper.h
         src/graphics/gfx.c
@@ -33,7 +33,7 @@ add_executable(GexGfxRip_PC
         src/helpers/basicdefs.h
         src/helpers/binary_parse.h
         src/main.c
-        src/filescanning/filescanning_obj_gfx_and_bg.c
+        src/filescanning/obj_gfx_and_bg.c
         src/helpers/xpgetopt/xpgetopt.c
         src/helpers/xpgetopt/xpgetopt.h
 )

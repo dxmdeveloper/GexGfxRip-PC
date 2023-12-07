@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <setjmp.h>
-#include "filescanning_tiles.h"
-#include "filescanning_obj_gfx_and_bg.h"
+#include "tiles.h"
+#include "obj_gfx_and_bg.h"
 #include "../graphics/gfx.h"
 #include "../essentials/vector.h"
 #include "../essentials/stack.h"
@@ -20,16 +20,16 @@
     jmp_buf *additional_error_jump_buffor_ptr = &new_error_jump_buffor; \
     jmp_buf **bufpp = errbufpp;                                         \
     if ((bufpp))                                                        \
-	prev_error_jump_bufforp = *(bufpp);                             \
+	prev_error_jump_bufforp = *(bufpp);                                 \
     if (!(bufpp))                                                       \
-	bufpp = &additional_error_jump_buffor_ptr;                      \
+	bufpp = &additional_error_jump_buffor_ptr;                          \
     *(bufpp) = &new_error_jump_buffor;                                  \
     if ((errbuf_errno = setjmp(new_error_jump_buffor))) {               \
-	extension_code *(bufpp) = prev_error_jump_bufforp;              \
-	if (*(bufpp))                                                   \
-	    longjmp(**(bufpp), errbuf_errno);                           \
-	else                                                            \
-	    exit(errbuf_errno);                                         \
+	extension_code *(bufpp) = prev_error_jump_bufforp;                  \
+	if (*(bufpp))                                                       \
+	    longjmp(**(bufpp), errbuf_errno);                               \
+	else                                                                \
+	    exit(errbuf_errno);                                             \
     }
 
 #define FSCAN_ERRBUF_REVERT(bufpp) \
