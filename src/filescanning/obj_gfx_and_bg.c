@@ -18,11 +18,12 @@ typedef gexdev_univec univec;
 static u32 p_cb_bmp_header_binds_compute_index(const void *key);
 
 // TODO: consider change
-static int p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
-                                      gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]);
+static int
+p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
+                           gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]);
 
 /** @brief adds offsets of graphic entries (structure with properties, header and palette offsets) to vecp vector.
- *  Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_index if such bitmap is found.*/
+ *  Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_counter if such bitmap is found.*/
 static void p_add_offset_to_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
                                 const uint iters[4]);
 
@@ -41,7 +42,7 @@ size_t fscan_obj_gfx_scan(fscan_files *files_stp) {
     if (files_stp->option_verbose)
         printf("------------- object scan -------------\n");
 
-    files_stp->ext_bmp_index = 0;
+    files_stp->ext_bmp_counter = 0;
     files_stp->obj_gfx_offsets.size = 0;
 
     return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, NULL);
@@ -117,7 +118,7 @@ size_t fscan_background_scan(fscan_files *files_stp) {
                 u32 comb_gfx[256] = {0};
                 fscan_read_gexptr_null_term_arr(bgchp, comb_gfx, sizeofarr(comb_gfx), *errbufpp);
 
-                for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++){
+                for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++) {
                     uint iters[4] = {i, ii, iii, iv};
                     p_add_offset_to_vec(files_stp, bgchp, &files_stp->bg_gfx_offsets, iters);
                     total++;
@@ -138,7 +139,6 @@ inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_fi
     fscan_search_for_ext_bmps(files_stp);
 
     /* main chunk scan start */
-    uint ibuf = 0;
     size_t total = 0;
     u32 obj_offsets[256] = {0};
 
@@ -228,7 +228,7 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
                ftell(fchp->ptrs_fp) - 16, type,
                header_off, pal_off);
         if ((type & 0xF0) == 0xC0) {
-            printf(",\"ext_bmp_index\": %u", files_stp->ext_bmp_index);
+            printf(",\"ext_bmp_counter\": %u", files_stp->ext_bmp_counter);
         }
         printf("} iterVec: [");
         for (size_t i = 0; i < 3; i++) {
@@ -240,7 +240,7 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
 
     gfx_size = fscan_read_header_and_bitmaps_alloc(main_chp, bmp_chp, &header_and_bmp, &bmpp,
                                                    files_stp->ext_bmp_offsets.v,
-                                                   files_stp->ext_bmp_offsets.size, &files_stp->ext_bmp_index,
+                                                   files_stp->ext_bmp_offsets.size, &files_stp->ext_bmp_counter,
                                                    *errbufpp,
                                                    bmp_headers_binds_mapp);
     if (gfx_size == 0) {
@@ -271,10 +271,10 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
 }
 
 void p_add_offset_to_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp, const uint iters[4]) {
-    u32 *extind = &files_stp->ext_bmp_index;
+    u32 *extind = &files_stp->ext_bmp_counter;
     u32 type = 0;
-    struct fscan_gfx_loc_info_st gfx_loc_info = {ftell(fchp->ptrs_fp), ~0,
-                                                 {iters[3], iters[2], iters[1], iters[0]}};
+    fscan_gfx_loc_info gfx_loc_info = {ftell(fchp->ptrs_fp), ~0,
+                                       {iters[3], iters[2], iters[1], iters[0]}};
 
     fseek(fchp->ptrs_fp, 8, SEEK_CUR);
     fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);
@@ -284,9 +284,10 @@ void p_add_offset_to_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_
 
     if ((type & 0xF0) == 0xC0) {
         struct gex_gfxchunk gchunk = {0};
-        gfx_loc_info.ext_bmp_index = files_stp->ext_bmp_index;
+        // TODO: Check if bitmap is already in the list with ptr_map
+        gfx_loc_info.ext_bmp_index = *extind;
 
-        for (uint i = 0; i < IMG_CHUNKS_LIMIT; i++, extind[0]++) {
+        for (uint i = 0; i < IMG_CHUNKS_LIMIT; i++, (*extind)++) {
             if (!gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk)) break;
         }
     }

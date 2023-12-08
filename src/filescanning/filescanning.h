@@ -63,7 +63,7 @@ enum fscan_errno_enum {
     FSCAN_READ_ERROR_WRONG_VALUE,
     FSCAN_ERROR_INDEX_OUT_OF_RANGE,
 };
-typedef struct fscan_file_chunk_structure {
+typedef struct {
     FILE *data_fp;
     FILE *ptrs_fp;
     size_t size;
@@ -71,15 +71,17 @@ typedef struct fscan_file_chunk_structure {
     uint32_t ep;
 } fscan_file_chunk;
 
-typedef struct fscan_files_st {
+typedef struct fscan_files {
     fscan_file_chunk tile_chunk;
     fscan_file_chunk bitmap_chunk;
     fscan_file_chunk bg_chunk;
     fscan_file_chunk main_chunk;
     fscan_file_chunk intro_chunk;
 
-    uint32_t ext_bmp_index;
+    uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
+    gexdev_u32vec tile_bmp_offsets;
+    gexdev_univec tile_gfx_offsets;
     gexdev_univec obj_gfx_offsets; // vector of fscan_gfx_loc_info
     gexdev_univec intro_gfx_offsets; // vector of fscan_gfx_loc_info
     gexdev_univec bg_gfx_offsets; // vector of fscan_gfx_loc_info
@@ -89,7 +91,7 @@ typedef struct fscan_files_st {
     jmp_buf *error_jmp_buf;
 } fscan_files;
 
-typedef struct fscan_gfx_loc_info_st {
+typedef struct {
     uint32_t offset;
     uint32_t ext_bmp_index;
 
@@ -107,8 +109,8 @@ size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_j
 /** @brief initializes fscan_files structure. Opens one file in read mode multiple times and sets it at start position.
     @return enum fscan_level_type with bit flags */
 // filesStp->error_jmp_buf MUST be set before or after initialization
-int fscan_files_init(struct fscan_files_st *files_stp, const char filename[]);
-void fscan_files_close(struct fscan_files_st *files_stp);
+int fscan_files_init(fscan_files *files_stp, const char filename[]);
+void fscan_files_close(fscan_files *files_stp);
 
 /////** @brief checks file pointers for errors and eofs. if at least one has an error or eof flag jumps to error_jmp_buf
 ////    @param mode 0 - check all, 1 - check only ptrsFps, 2 - check only dataFps */
@@ -148,4 +150,9 @@ size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], 
 /** @brief search bitmap chunk for bitmap of game objects and background tiles and pushes offsets to files_stp->ext_bmp_offsets vector
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->ext_bmp_offsets. */
-const gexdev_u32vec *fscan_search_for_ext_bmps(struct fscan_files_st *files_stp);
+const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
+
+/** @brief search tile bmp chunk for tile bitmaps and pushes offsets to files_stp->tile_bmp_offsets vector
+ *  Will not search at all if the chunk is missing or is already scanned.
+ *  @return Pointer to files_stp->tile_bmp_offsets. */
+const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp);

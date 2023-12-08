@@ -75,7 +75,7 @@ static void printUsageHelp() {
 
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[]) {
-    struct fscan_files_st fscan_files_st = {0};
+    fscan_files fscan_files_obj = {0};
     struct application_options options = {0};
     char odirname[256];
     jmp_buf errbuf;
@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
             printUsageHelp();
             return 0;
         case 'v':
-            fscan_files_st.option_verbose = true;
+            fscan_files_obj.option_verbose = true;
             break;
         case '?':
             printUsageHelp();
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]) {
     // setjmp error handling
     if ((errno = setjmp(errbuf))) {
         fprintf(stderr, "error while scanning file %i", errno);
-        fscan_files_close(&fscan_files_st);
+        fscan_files_close(&fscan_files_obj);
         return -1;
     }
 
@@ -139,39 +139,39 @@ int main(int argc, char *argv[]) {
             sprintf(odirname, "%s-rip/", ifilename);
             options.save_path = odirname;
 
-            if (fscan_files_init(&fscan_files_st, ifilename) >= 0) {
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp &&
-                    fscan_files_st.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
-                    fscan_obj_gfx_scan(&fscan_files_st);
-                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
-                    fscan_intro_obj_gfx_scan(&fscan_files_st);
-                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
-                    fscan_background_scan(&fscan_files_st);
+            if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
+                    fscan_files_obj.main_chunk.ptrs_fp)
+                    fscan_tiles_scan(&fscan_files_obj, &pack, cb_on_tile_found);
+                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
+                    fscan_obj_gfx_scan(&fscan_files_obj);
+                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
+                    fscan_intro_obj_gfx_scan(&fscan_files_obj);
+                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
+                    fscan_background_scan(&fscan_files_obj);
 
-                fscan_files_close(&fscan_files_st);
+                fscan_files_close(&fscan_files_obj);
             }
         }
     } else {
         for (int i = xpoptind; i < argc; i++) {
-            if (fscan_files_init(&fscan_files_st, argv[xpoptind]) >= 0) {
+            if (fscan_files_init(&fscan_files_obj, argv[xpoptind]) >= 0) {
                 // output directory name
                 struct onfound_pack pack = {&options, 0};
                 sprintf(odirname, "%s-rip/", argv[xpoptind]);
                 options.save_path = odirname;
 
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_st.tile_chunk.ptrs_fp &&
-                    fscan_files_st.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_st, &pack, cb_on_tile_found);
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_st.main_chunk.ptrs_fp)
-                    fscan_obj_gfx_scan(&fscan_files_st);
-                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_st.intro_chunk.ptrs_fp)
-                    fscan_intro_obj_gfx_scan(&fscan_files_st);
-                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_st.bg_chunk.ptrs_fp)
-                    fscan_background_scan(&fscan_files_st);
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
+                    fscan_files_obj.main_chunk.ptrs_fp)
+                    fscan_tiles_scan(&fscan_files_obj, &pack, cb_on_tile_found);
+                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
+                    fscan_obj_gfx_scan(&fscan_files_obj);
+                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
+                    fscan_intro_obj_gfx_scan(&fscan_files_obj);
+                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
+                    fscan_background_scan(&fscan_files_obj);
 
-                fscan_files_close(&fscan_files_st);
+                fscan_files_close(&fscan_files_obj);
             } else {
                 fprintf(stderr, "error: failed to open file %s\n", argv[xpoptind]);
             }

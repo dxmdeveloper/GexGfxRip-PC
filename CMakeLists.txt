@@ -20,12 +20,9 @@ add_executable(GexGfxRip_PC
         src/essentials/vector.h
         src/filescanning/filescanning.c
         src/filescanning/filescanning.h
-        src/filescanning/obj_gfx_and_bg.c
         src/filescanning/obj_gfx_and_bg.h
         src/filescanning/tiles.c
         src/filescanning/tiles.h
-        src/filescanning/fseeking_helper.c
-        src/filescanning/fseeking_helper.h
         src/graphics/gfx.c
         src/graphics/gfx.h
         src/graphics/write_png.c
@@ -36,6 +33,7 @@ add_executable(GexGfxRip_PC
         src/filescanning/obj_gfx_and_bg.c
         src/helpers/xpgetopt/xpgetopt.c
         src/helpers/xpgetopt/xpgetopt.h
+        src/filescanning/obj_gfx_and_bg.c
 )
 
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})
