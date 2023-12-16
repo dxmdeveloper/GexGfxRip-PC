@@ -59,6 +59,14 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
 
         // base tile graphics
         // TODO: similar to fscan_obj_gfx_scan. Collect offsets
+        fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read tile graphic id
+        while(gfxid <= 0xffff) {
+            fseek(mchp->ptrs_fp, -4, SEEK_CUR);
+            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, bmp_iters);
+            fseek(mchp->ptrs_fp, 4, SEEK_CUR); // TODO: Ensure that this is correct
+            fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read next tile graphic id
+        }
+
 
         // animated tiles
         uint animind = 0;

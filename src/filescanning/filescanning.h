@@ -156,3 +156,9 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->tile_bmp_offsets. */
 const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp);
+
+/** @brief adds offsets of graphic entries (structure with properties, header and palette offsets)
+ * to vector with location, assigned ext_bmp_index and iteration information..
+ * Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_counter if such bitmap is found.
+ * Function used by fscan_..._scan functions.  */
+void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp, const uint iters[4]);

@@ -34,6 +34,7 @@ add_executable(GexGfxRip_PC
         src/helpers/xpgetopt/xpgetopt.c
         src/helpers/xpgetopt/xpgetopt.h
         src/filescanning/obj_gfx_and_bg.c
+        src/helpers/error_handler.h
 )
 
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})
