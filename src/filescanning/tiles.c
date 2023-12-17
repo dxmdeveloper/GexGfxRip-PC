@@ -49,47 +49,50 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
     // follow the read offsets, prepare tile graphics and call the callback passed to current function.
     for (uint i = 0; i < 32 && block[i]; i++) {
         u32 gfxid = 0;
-        u32 animsetsoff = 0;
+        u32 asets_off = 0;
 
         fseek(mchp->ptrs_fp, block[i], SEEK_SET);
-        animsetsoff = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp);
+        asets_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp);
 
-        if (animsetsoff >= mchp->size + mchp->offset - 4)
+        if (asets_off >= mchp->size + mchp->offset - 4)
             longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
 
         // base tile graphics
-        // TODO: similar to fscan_obj_gfx_scan. Collect offsets
         fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read tile graphic id
         while(gfxid <= 0xffff) {
+            u8 it[4] = {0, i};
+            *(u16*)&it[2] = gfxid;
             fseek(mchp->ptrs_fp, -4, SEEK_CUR);
-            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, bmp_iters);
+            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, it);
             fseek(mchp->ptrs_fp, 4, SEEK_CUR); // TODO: Ensure that this is correct
             fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read next tile graphic id
         }
 
 
         // animated tiles
-        uint animind = 0;
-        u32 aframesoff = 0;
-        if (!animsetsoff)
+        uint anim_ind = 0;
+        u32 aframes_off = 0;
+        if (!asets_off)
             continue;
 
-        fseek(mchp->ptrs_fp, animsetsoff, SEEK_SET);
-        while ((aframesoff = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp))) {
-            uint animfrind = 1;
+        fseek(mchp->ptrs_fp, asets_off, SEEK_SET);
+        while ((aframes_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp))) {
+            uint aframe_ind = 1;
 
             fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read graphic id
-            if (aframesoff >= mchp->size + mchp->offset - 4)
+            if (aframes_off >= mchp->size + mchp->offset - 4)
                 longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
-            fseek(mchp->ptrs_fp, aframesoff, SEEK_SET);
+            fseek(mchp->ptrs_fp, aframes_off, SEEK_SET);
 
-            while (p_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, animfrind, i, &bmp_headers_binds_map,
+
+            // TODO: similar to above, but with animation frames
+            while (p_prep_tile_gfx_data_and_exec_cb(files_stp, gfxid, aframe_ind, i, &bmp_headers_binds_map,
                                                     tile_bmp_offsets, bmp_iters,
                                                     pass2cb, cb)) {
-                animfrind++;
+                aframe_ind++;
             }
 
-            fseek(mchp->ptrs_fp, animsetsoff + 20 * ++animind, SEEK_SET);
+            fseek(mchp->ptrs_fp, asets_off + 20 * ++anim_ind, SEEK_SET);
         }
     }
 

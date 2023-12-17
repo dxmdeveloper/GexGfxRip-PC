@@ -81,10 +81,12 @@ typedef struct fscan_files {
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
     gexdev_u32vec tile_bmp_offsets;
+    // vectors of fscan_gfx_loc_info.
     gexdev_univec tile_gfx_offsets;
-    gexdev_univec obj_gfx_offsets; // vector of fscan_gfx_loc_info
-    gexdev_univec intro_gfx_offsets; // vector of fscan_gfx_loc_info
-    gexdev_univec bg_gfx_offsets; // vector of fscan_gfx_loc_info
+    gexdev_univec tile_anim_frames_offsets;
+    gexdev_univec obj_gfx_offsets;
+    gexdev_univec intro_gfx_offsets;
+    gexdev_univec bg_gfx_offsets;
 
     bool option_verbose;
 
@@ -161,4 +163,5 @@ const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp);
  * to vector with location, assigned ext_bmp_index and iteration information..
  * Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_counter if such bitmap is found.
  * Function used by fscan_..._scan functions.  */
-void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp, const uint iters[4]);
+void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
+                                   const u8 iter[4]);

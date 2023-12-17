@@ -96,6 +96,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
             case 0:gexdev_univec_init_capcity(&files_stp->obj_gfx_offsets, 1024, sizeof(fscan_gfx_loc_info));
+                   gexdev_univec_init_capcity(&files_stp->tile_anim_frames_offsets, 256, sizeof(fscan_gfx_loc_info));
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_MAIN;
                 break; // invalid / non-exsiting chunk
@@ -145,6 +146,7 @@ void fscan_files_close(fscan_files *files_stp)
     gexdev_univec_close(&files_stp->bg_gfx_offsets);
     gexdev_u32vec_close(&files_stp->ext_bmp_offsets);
     gexdev_u32vec_close(&files_stp->tile_bmp_offsets);
+    gexdev_univec_close(&files_stp->tile_anim_frames_offsets);
 }
 
 u32 fscan_read_gexptr(FILE *fp, uint32_t chunk_offset, jmp_buf *error_jmp_buf)
@@ -350,12 +352,12 @@ const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp)
 
 // TODO: Make more suitable for fscan_tiles_scan
 void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
-                                   const uint *iters)
+                                   const u8 iter[4])
 {
     u32 *extind = &files_stp->ext_bmp_counter;
     u32 type = 0;
     fscan_gfx_loc_info gfx_loc_info = {ftell(fchp->ptrs_fp), ~0,
-                                       {iters[3], iters[2], iters[1], iters[0]}};
+                                       {iter[3], iter[2], iter[1], iter[0]}};
 
     fseek(fchp->ptrs_fp, 8, SEEK_CUR);
     fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);

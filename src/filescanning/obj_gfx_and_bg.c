@@ -4,7 +4,7 @@
 #include "../essentials/ptr_map.h"
 #include "../helpers/binary_parse.h"
 
-// TODO: DOCS OF THE PATTERNS
+// Leftovers from old implementation
 #define FSCAN_OBJ_GFX_FLW_PATTERN "e+0x20gg [G{ g [G{ [G{ +24 g [G{ c };]   };] };] }+4;]"
 #define FSCAN_BACKGROUND_FLW_PATTERN "eg+24[G{ +48 [G{ +4 ggg   [G{+24g[G{ c };]};]   };] };]"
 
