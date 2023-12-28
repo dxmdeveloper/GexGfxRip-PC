@@ -96,7 +96,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
             case 0:gexdev_univec_init_capcity(&files_stp->obj_gfx_offsets, 1024, sizeof(fscan_gfx_loc_info));
-                   gexdev_univec_init_capcity(&files_stp->tile_anim_frames_offsets, 256, sizeof(fscan_gfx_loc_info));
+                gexdev_univec_init_capcity(&files_stp->tile_anim_frames_offsets, 256, sizeof(fscan_gfx_loc_info));
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_MAIN;
                 break; // invalid / non-exsiting chunk
