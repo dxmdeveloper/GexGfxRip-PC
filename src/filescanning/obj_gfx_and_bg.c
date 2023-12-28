@@ -82,8 +82,6 @@ size_t fscan_background_scan(fscan_files *files_stp) {
     fscan_file_chunk *bgchp = &files_stp->bg_chunk;
     FILE *bgfp = bgchp->ptrs_fp;
 
-    // TODO: scanning implementation
-    // "eg+24[G{ +48 [G{ +4 ggg   [G{+24g[G{ c };]};]   };] };]"
     fseek(bgfp, bgchp->ep, SEEK_SET);
     fscan_read_gexptr_and_follow(bgchp, 24, *errbufpp);
 
@@ -114,8 +112,8 @@ size_t fscan_background_scan(fscan_files *files_stp) {
                 fscan_read_gexptr_null_term_arr(bgchp, comb_gfx, sizeofarr(comb_gfx), *errbufpp);
 
                 for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++) {
-                    uint iters[4] = {i, ii, iii, iv};
-                    p_fscan_add_offset_to_loc_vec(files_stp, bgchp, &files_stp->bg_gfx_offsets, iters);
+                    u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
+                    p_fscan_add_offset_to_loc_vec(files_stp, bgchp, &files_stp->bg_gfx_offsets, it);
                     total++;
                 }
             }
@@ -169,10 +167,10 @@ inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_fi
                 fscan_read_gexptr_null_term_arr(fchp, combined_gfx_offs, sizeofarr(combined_gfx_offs), *errbufpp);
 
                 for (uint iv = 0; iv < sizeofarr(combined_gfx_offs) && combined_gfx_offs[iv]; iv++) {
-                    uint iters[4] = {i, ii, iii, iv};
+                    u8 it[4] = {(u8)i, (u8)ii, (u8)iii, (u8)iv};
 
                     fseek(fchp->ptrs_fp, combined_gfx_offs[iv], SEEK_SET);
-                    p_fscan_add_offset_to_loc_vec(files_stp, fchp, offvec, iters);
+                    p_fscan_add_offset_to_loc_vec(files_stp, fchp, offvec, it);
                     total++;
                 }
             }

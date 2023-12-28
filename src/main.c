@@ -22,11 +22,13 @@
 #endif
 
 // STATIC DECLARATIONS:
-struct application_options {
+struct application_options
+{
     char *save_path;
 };
 
-struct onfound_pack {
+struct onfound_pack
+{
     struct application_options *app_options;
     bool is_tile_dir_created;
     bool is_obj_gfx_dir_created;
@@ -34,7 +36,8 @@ struct onfound_pack {
     bool is_bg_dir_created;
 };
 
-enum GFX_TYPE_ENUM {
+enum GFX_TYPE_ENUM
+{
     TYPE_ALL,
     TYPE_TILES,
     TYPE_OBJECTS,
@@ -58,13 +61,15 @@ static void
 cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
                         u32 iterations[static 4], struct gfx_properties *);
 
-static int strcmp_ci(const char *str1, const char *str2) {
+static int strcmp_ci(const char *str1, const char *str2)
+{
     while (*str1 && *str2 && tolower(*str1) == tolower(*str2))
         str1++, str2++;
     return *str1 - *str2;
 }
 
-static void printUsageHelp() {
+static void printUsageHelp()
+{
     printf("Usage: gexgfxrip [OPTION]... [FILE]\n");
     printf("Extracts graphics from Gex (PC) game files.\n");
     printf("  -h, --help\t\t\tPrint this help message and exit\n");
@@ -74,7 +79,8 @@ static void printUsageHelp() {
 }
 
 //-------------------- Program Entry Point --------------------------
-int main(int argc, char *argv[]) {
+int main(int argc, char *argv[])
+{
     fscan_files fscan_files_obj = {0};
     struct application_options options = {0};
     char odirname[256];
@@ -84,19 +90,16 @@ int main(int argc, char *argv[]) {
 
     // Application options
     struct xpoption options_table[] = {
-            {"help",    no_argument, NULL, 'h'},
-            {"verbose", no_argument, NULL, 'v'},
+        {"help", no_argument, NULL, 'h'},
+        {"verbose", no_argument, NULL, 'v'},
     };
 
     switch (xpgetopt_long(argc, argv, "hvt:", options_table, NULL)) {
-        case 'h':
-            printUsageHelp();
+        case 'h':printUsageHelp();
             return 0;
-        case 'v':
-            fscan_files_obj.option_verbose = true;
+        case 'v':fscan_files_obj.option_verbose = true;
             break;
-        case '?':
-            printUsageHelp();
+        case '?':printUsageHelp();
             return 1;
         case 't':
             if (strcmp_ci(xpoptarg, "all") == 0)
@@ -142,7 +145,7 @@ int main(int argc, char *argv[]) {
             if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
                 if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
                     fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_obj, &pack, cb_on_tile_found);
+                    fscan_tiles_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
                     fscan_obj_gfx_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
@@ -163,7 +166,7 @@ int main(int argc, char *argv[]) {
 
                 if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
                     fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_obj, &pack, cb_on_tile_found);
+                    fscan_tiles_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
                     fscan_obj_gfx_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
@@ -183,7 +186,8 @@ int main(int argc, char *argv[]) {
 
 /// @return EXIT_SUCCESS or EXIT_FAILURE
 inline static int draw_img_and_create_png(const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                                          const char *out_filename) {
+                                          const char *out_filename)
+{
     png_byte **image = NULL;
     u32 realWidth = 0, realHeight = 0;
     FILE *fp = NULL;
@@ -232,7 +236,8 @@ inline static int draw_img_and_create_png(const void *headers, const void *bitma
 // TODO: output filename based on program argument
 static void cb_on_tile_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
                              u16 tileGfxID,
-                             u16 tileAnimFrameI) {
+                             u16 tileAnimFrameI)
+{
     char filePath[PATH_MAX] = "\0";
     struct onfound_pack *packp = clientp;
 
@@ -256,7 +261,8 @@ static void cb_on_tile_found(void *clientp, const void *headers, const void *bit
 
 inline static void
 on_gfx_found_body(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                  uint iterations[4], bool *isdircreatedflagp, const char *subdir, const char *filename_format) {
+                  uint iterations[4], bool *isdircreatedflagp, const char *subdir, const char *filename_format)
+{
     char filePath[PATH_MAX] = "\0";
     char fformat[50] = "%s/%s/";
     struct onfound_pack *packp = clientp;
@@ -284,7 +290,8 @@ on_gfx_found_body(void *clientp, const void *headers, const void *bitmap, const 
 
 static void
 cb_on_obj_gfx_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                    u32 iterations[4], struct gfx_properties *gfx_props) {
+                    u32 iterations[4], struct gfx_properties *gfx_props)
+{
     on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
                       &((struct onfound_pack *) clientp)->is_obj_gfx_dir_created, "objects",
                       "%u-%u-%u-%u.png");
@@ -292,7 +299,8 @@ cb_on_obj_gfx_found(void *clientp, const void *headers, const void *bitmap, cons
 
 void cb_on_intro_obj_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
                            u32 iterations[4],
-                           struct gfx_properties *gfx_props) {
+                           struct gfx_properties *gfx_props)
+{
     on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
                       &((struct onfound_pack *) clientp)->is_intro_dir_created, "intro",
                       "%u-%u-%u-%u.png");
@@ -300,7 +308,8 @@ void cb_on_intro_obj_found(void *clientp, const void *headers, const void *bitma
 
 void cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
                              u32 iterations[4],
-                             struct gfx_properties *gfx_props) {
+                             struct gfx_properties *gfx_props)
+{
     on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
                       &((struct onfound_pack *) clientp)->is_bg_dir_created, "backgrounds",
                       "%u-%u-%u-%u.png");
