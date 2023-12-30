@@ -127,8 +127,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
         retval = 1;
     }
 
-    if (fp != NULL)
-        fclose(fp);
+    fclose(fp);
     return retval;
 }
 
@@ -147,6 +146,9 @@ void fscan_files_close(fscan_files *files_stp)
     gexdev_u32vec_close(&files_stp->ext_bmp_offsets);
     gexdev_u32vec_close(&files_stp->tile_bmp_offsets);
     gexdev_univec_close(&files_stp->tile_anim_frames_offsets);
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[0]);
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]); // in case of error
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[2]); // in case of error
 }
 
 u32 fscan_read_gexptr(FILE *fp, uint32_t chunk_offset, jmp_buf *error_jmp_buf)
@@ -350,31 +352,32 @@ const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp)
     return &files_stp->tile_bmp_offsets;
 }
 
-// TODO: Make more suitable for fscan_tiles_scan
 void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
-                                   const u8 iter[4])
+                                   const u8 iter[4], long gfx_ptr_off, size_t used_gfx_map_ind)
 {
     u32 *extind = &files_stp->ext_bmp_counter;
     u32 type = 0;
     fscan_gfx_loc_info gfx_loc_info = {ftell(fchp->ptrs_fp), ~0,
                                        {iter[3], iter[2], iter[1], iter[0]}};
 
-    fseek(fchp->ptrs_fp, 8, SEEK_CUR);
-    fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);
+    fseek(fchp->ptrs_fp, gfx_ptr_off, SEEK_CUR);
+    u32 gfxoff = fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);
 
     if (!fread_LE_U32(&type, 1, fchp->ptrs_fp))
         longjmp(*files_stp->error_jmp_buf, FSCAN_READ_ERROR_FREAD);
 
-    if ((type & 0xF0) == 0xC0) {
+    if ((type & 0xF0) == 0xC0
+        && gexdev_bitflag_arr_get(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8)
+            == 0) /* graphic not used before */
+    {
         struct gex_gfxchunk gchunk = {0};
-        // TODO: Check if bitmap is already in the list with ptr_map
         gfx_loc_info.ext_bmp_index = *extind;
 
         for (uint i = 0; i < IMG_CHUNKS_LIMIT; i++, (*extind)++) {
             if (!gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk)) break;
         }
     }
-
+    gexdev_bitflag_arr_set(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8, 1);
     gexdev_univec_push_back(vecp, &gfx_loc_info);
 }
 

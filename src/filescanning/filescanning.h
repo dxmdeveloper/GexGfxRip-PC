@@ -8,6 +8,7 @@
 #include "../essentials/vector.h"
 #include "../essentials/stack.h"
 #include "../essentials/ptr_map.h"
+#include "../essentials/bitflag_array.h"
 #include "basicdefs.h"
 
 #define FILE_MIN_SIZE 128
@@ -88,6 +89,8 @@ typedef struct fscan_files {
     gexdev_univec intro_gfx_offsets;
     gexdev_univec bg_gfx_offsets;
 
+    gexdev_bitflag_arr used_gfx_flags[3]; // 0 - main, 1 - intro, 2 - background
+
     bool option_verbose;
 
     jmp_buf *error_jmp_buf;
@@ -164,4 +167,4 @@ const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp);
  * Counts bitmaps from bitmap chunk used in graphic. Increments ext_bmp_counter if such bitmap is found.
  * Function used by fscan_..._scan functions.  */
 void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
-                                   const u8 iter[4]);
+                                   const u8 iter[4], long gfx_ptr_off, size_t used_gfx_map_ind);

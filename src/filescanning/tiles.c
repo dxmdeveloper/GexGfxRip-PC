@@ -23,10 +23,15 @@ p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint
 // ---------------- FUNC DEFINITIONS ----------------
 
 // TODO: reimplement this like fscan_obj_gfx_scan. Collect offsets first.
-size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
-    fscan_file_chunk *tchp = &files_stp->tile_chunk;
+size_t fscan_tiles_scan(fscan_files files_stp[static 1])
+{
     fscan_file_chunk *mchp = &files_stp->main_chunk;
     size_t total = 0;
+
+    if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.ptrs_fp) {
+        gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[0], files_stp->main_chunk.size / 8);
+    }
+    files_stp->ext_bmp_counter = 0; // TODO: check if this does not mess up with other scans
 
     // ---------------------- error handling ----------------------
     jmp_buf **errbufpp = &files_stp->error_jmp_buf;
@@ -37,7 +42,6 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
     fscan_search_for_tile_bmps(files_stp);
 
     // ----- main file chunk scan for graphic entries -----
-    uint bmp_iters[32] = {0};
     u32 block[32] = {0};
 
     fseek(mchp->ptrs_fp, mchp->ep + 0x28, SEEK_SET);
@@ -58,12 +62,13 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
 
         // base tile graphics
         fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read tile graphic id
-        while(gfxid <= 0xffff) {
+        while (gfxid <= 0xffff) {
             u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, 0};
+            fseek(mchp->ptrs_fp, -4, SEEK_CUR); // back to tile graphic id
 
-            fseek(mchp->ptrs_fp, -4, SEEK_CUR);
-            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, it);
-            fseek(mchp->ptrs_fp, 4, SEEK_CUR); // TODO: Ensure that this is correct
+            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, it, 4, 0);
+
+            fseek(mchp->ptrs_fp, 4, SEEK_CUR);
             fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read next tile graphic id
         }
 
@@ -86,13 +91,14 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
                 uint aframe_ind = 1;
                 u32 gfx_off = 0;
                 fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read first graphic offset
-                while (gfx_off){
+                while (gfx_off) {
                     u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, aframe_ind};
 
-                    fseek(mchp->ptrs_fp, -4, SEEK_CUR);
-                    p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it);
+                    fseek(mchp->ptrs_fp, -4, SEEK_CUR); // back to graphic offset
+                    p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0, 0);
                     fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read next graphic offset
                     aframe_ind++;
+                    total++;
                 }
 
                 fseek(mchp->ptrs_fp, tile_anims_off + 20 * ++anim_ind, SEEK_SET);
@@ -100,6 +106,7 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1]) {
         }
     }
 
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]);
     FSCAN_ERRBUF_REVERT(errbufpp);
     return total;
 }
@@ -108,7 +115,8 @@ static int
 p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint tile_anim_frame, uint block_ind,
                                  gexdev_ptr_map *bmp_headers_binds_map, const gexdev_u32vec tile_bmp_offsets_vecp[2],
                                  uint bmp_index[32], void *pass2cb,
-                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u16, u16)) {
+                                 void cb(void *, const void *, const void *, const struct gfx_palette *, u16, u16))
+{
     void *header_and_bmp = NULL;
     void *bmpp = NULL;
     size_t gfx_size = 0;
@@ -172,7 +180,8 @@ p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint
     return 1;
 }
 
-static u32 p_cb_tile_header_binds_compute_index(const void *key) {
+static u32 p_cb_tile_header_binds_compute_index(const void *key)
+{
     const u32 *u32key = key;
     return *u32key / 32;
 }

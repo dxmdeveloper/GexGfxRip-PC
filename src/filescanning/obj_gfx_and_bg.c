@@ -1,8 +1,9 @@
 #include "obj_gfx_and_bg.h"
 #include "filescanning.h"
 #include "../helpers/basicdefs.h"
-#include "../essentials/ptr_map.h"
 #include "../helpers/binary_parse.h"
+#include "../essentials/ptr_map.h"
+#include "../essentials/bitflag_array.h"
 
 // Leftovers from old implementation
 #define FSCAN_OBJ_GFX_FLW_PATTERN "e+0x20gg [G{ g [G{ [G{ +24 g [G{ c };]   };] };] }+4;]"
@@ -12,6 +13,7 @@ typedef void (*onfound_cb_t)(void *, const void *, const void *, const struct gf
                              struct gfx_properties *);
 
 typedef gexdev_u32vec vec32;
+
 typedef gexdev_univec univec;
 
 // _________________________________ static function declarations _________________________________
@@ -22,17 +24,26 @@ static int
 p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
                            gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]);
 
-inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec offvec[1]);
+inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
+                                              fscan_file_chunk fchp[1],
+                                              univec offvec[1],
+                                              size_t used_gfx_flags_index);
 
 // _____________________________________ function definitions _____________________________________
 
-static u32 p_cb_bmp_header_binds_compute_index(const void *key) {
+static u32 p_cb_bmp_header_binds_compute_index(const void *key)
+{
     return *(const u32 *) key / 32;
 }
 
-size_t fscan_obj_gfx_scan(fscan_files *files_stp) {
+size_t fscan_obj_gfx_scan(fscan_files *files_stp)
+{
     if (!files_stp->main_chunk.ptrs_fp)
         return 0;
+
+    if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.ptrs_fp) {
+        gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[0], files_stp->main_chunk.size / 8);
+    }
 
     if (files_stp->option_verbose)
         printf("------------- object scan -------------\n");
@@ -40,12 +51,18 @@ size_t fscan_obj_gfx_scan(fscan_files *files_stp) {
     files_stp->ext_bmp_counter = 0;
     files_stp->obj_gfx_offsets.size = 0;
 
-    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, NULL);
+    // don't close the bitflag array because we will need it later
+    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, NULL, 0);
 }
 
-size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp) {
+size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp)
+{
     if (!files_stp->intro_chunk.ptrs_fp)
         return 0;
+
+    if (!files_stp->used_gfx_flags[1].arr && files_stp->bitmap_chunk.ptrs_fp) {
+        gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[1], files_stp->intro_chunk.size / 8);
+    }
 
     if (files_stp->option_verbose)
         printf("----------- intro object scan ----------\n");
@@ -56,12 +73,19 @@ size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp) {
     }
     files_stp->obj_gfx_offsets.size = 0;
 
-    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, NULL);
+    size_t total = p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, NULL, 1);
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]);
+    return total;
 }
 
-size_t fscan_background_scan(fscan_files *files_stp) {
+size_t fscan_background_scan(fscan_files *files_stp)
+{
     if (!files_stp->bg_chunk.ptrs_fp)
         return 0;
+
+    if (!files_stp->used_gfx_flags[2].arr && files_stp->bitmap_chunk.ptrs_fp) {
+        gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[2], files_stp->bg_chunk.size / 8);
+    }
 
     jmp_buf **errbufpp = &files_stp->error_jmp_buf;
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "fscan_background_scan error\n");)
@@ -113,18 +137,24 @@ size_t fscan_background_scan(fscan_files *files_stp) {
 
                 for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++) {
                     u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
-                    p_fscan_add_offset_to_loc_vec(files_stp, bgchp, &files_stp->bg_gfx_offsets, it);
+                    p_fscan_add_offset_to_loc_vec(files_stp, bgchp, &files_stp->bg_gfx_offsets, it, 8, 2);
+                    fseek(bgfp, 4, SEEK_CUR);
                     total++;
                 }
             }
         }
     }
 
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[2]);
     FSCAN_ERRBUF_REVERT(errbufpp);
     return total;
 }
 
-inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec offvec[1]) {
+inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
+                                              fscan_file_chunk fchp[1],
+                                              univec offvec[1],
+                                              size_t used_gfx_flags_index)
+{
     jmp_buf **errbufpp = &files_stp->error_jmp_buf;
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "p_scan_chunk_for_obj_gfx error\n");)
 
@@ -167,10 +197,10 @@ inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_fi
                 fscan_read_gexptr_null_term_arr(fchp, combined_gfx_offs, sizeofarr(combined_gfx_offs), *errbufpp);
 
                 for (uint iv = 0; iv < sizeofarr(combined_gfx_offs) && combined_gfx_offs[iv]; iv++) {
-                    u8 it[4] = {(u8)i, (u8)ii, (u8)iii, (u8)iv};
+                    u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
 
-                    fseek(fchp->ptrs_fp, combined_gfx_offs[iv], SEEK_SET);
-                    p_fscan_add_offset_to_loc_vec(files_stp, fchp, offvec, it);
+                    p_fscan_add_offset_to_loc_vec(files_stp, fchp, offvec, it, 8, used_gfx_flags_index);
+                    fseek(fchp->ptrs_fp, 4, SEEK_CUR);
                     total++;
                 }
             }
@@ -184,7 +214,8 @@ inline static size_t p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_fi
 
 static int
 p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
-                           gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]) {
+                           gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4])
+{
     fscan_file_chunk *main_chp = fchp;
     fscan_file_chunk *bmp_chp = &files_stp->bitmap_chunk;
     jmp_buf **errbufpp = &files_stp->error_jmp_buf;
