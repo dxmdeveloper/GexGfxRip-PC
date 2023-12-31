@@ -82,7 +82,7 @@ typedef struct fscan_files {
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
     gexdev_u32vec tile_bmp_offsets;
-    // vectors of fscan_gfx_loc_info.
+    // vectors of fscan_gfx_loc_info. Move to struct fscan_gfx_loc_info???
     gexdev_univec tile_gfx_offsets;
     gexdev_univec tile_anim_frames_offsets;
     gexdev_univec obj_gfx_offsets;

@@ -52,7 +52,7 @@ size_t fscan_obj_gfx_scan(fscan_files *files_stp)
     files_stp->obj_gfx_offsets.size = 0;
 
     // don't close the bitflag array because we will need it later
-    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, NULL, 0);
+    return p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, &files_stp->obj_gfx_offsets, 0);
 }
 
 size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp)
@@ -73,7 +73,7 @@ size_t fscan_intro_obj_gfx_scan(fscan_files *files_stp)
     }
     files_stp->obj_gfx_offsets.size = 0;
 
-    size_t total = p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, NULL, 1);
+    size_t total = p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, &files_stp->intro_gfx_offsets, 1);
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]);
     return total;
 }

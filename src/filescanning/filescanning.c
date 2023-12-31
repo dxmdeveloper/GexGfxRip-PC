@@ -322,7 +322,9 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp)
     }
 
     for (int i = 0; i < 6; i++) {
-        if (block_offsets[i]) {
+        if (block_offsets[i]
+            && block_offsets[i] <= files_stp->bitmap_chunk.size + files_stp->bitmap_chunk.offset - 4)  // ???
+        {
             fseek(files_stp->bitmap_chunk.ptrs_fp, block_offsets[i], SEEK_SET);
             p_read_arr_of_bmp_ptrs_and_push_valid_bmp_offs_to_vec(&files_stp->bitmap_chunk,
                                                                   &files_stp->ext_bmp_offsets,
@@ -374,7 +376,8 @@ void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fch
         gfx_loc_info.ext_bmp_index = *extind;
 
         for (uint i = 0; i < IMG_CHUNKS_LIMIT; i++, (*extind)++) {
-            if (!gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk)) break;
+            gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk);
+            if (gchunk.width == 0) break;
         }
     }
     gexdev_bitflag_arr_set(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8, 1);

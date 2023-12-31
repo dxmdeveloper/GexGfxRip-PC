@@ -95,7 +95,7 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1])
                     u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, aframe_ind};
 
                     fseek(mchp->ptrs_fp, -4, SEEK_CUR); // back to graphic offset
-                    p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0, 0);
+                    p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0);
                     fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read next graphic offset
                     aframe_ind++;
                     total++;
