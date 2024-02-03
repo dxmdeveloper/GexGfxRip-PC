@@ -94,6 +94,7 @@ void gexdev_univec_close(gexdev_univec *vecp)
     if (vecp->v)
         free(vecp->v);
     vecp->v = NULL;
+    vecp->size = 0;
 }
 
 int gexdev_univec_push_back(gexdev_univec *vecp, const void *val)

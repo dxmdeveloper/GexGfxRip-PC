@@ -21,16 +21,16 @@
     jmp_buf *additional_error_jump_buffor_ptr = &new_error_jump_buffor; \
     jmp_buf **bufpp = errbufpp;                                         \
     if ((bufpp))                                                        \
-	prev_error_jump_bufforp = *(bufpp);                                 \
+    prev_error_jump_bufforp = *(bufpp);                                 \
     if (!(bufpp))                                                       \
-	bufpp = &additional_error_jump_buffor_ptr;                          \
+    bufpp = &additional_error_jump_buffor_ptr;                          \
     *(bufpp) = &new_error_jump_buffor;                                  \
     if ((errbuf_errno = setjmp(new_error_jump_buffor))) {               \
-	extension_code *(bufpp) = prev_error_jump_bufforp;                  \
-	if (*(bufpp))                                                       \
-	    longjmp(**(bufpp), errbuf_errno);                               \
-	else                                                                \
-	    exit(errbuf_errno);                                             \
+    extension_code *(bufpp) = prev_error_jump_bufforp;                  \
+    if (*(bufpp))                                                       \
+        longjmp(**(bufpp), errbuf_errno);                               \
+    else                                                                \
+        exit(errbuf_errno);                                             \
     }
 
 #define FSCAN_ERRBUF_REVERT(bufpp) \
@@ -40,7 +40,8 @@
 /* ERRORS: -1 - failed to open a file, -2 - file is too small, -3 read error, 
    TYPES: 0 - loaded standard level file, 1 - loaded standalone gfx file
    BIT FLAGS: 2 - level file does not contain valid tiles chunk, 4 - level file does not contain valid Gfx chunk. */
-enum fscan_level_type_enum {
+enum fscan_level_type_enum
+{
     FSCAN_LEVEL_TYPE_FOPEN_ERROR = -1,
     FSCAN_LEVEL_TYPE_FILE_TOO_SMALL = -2,
     FSCAN_LEVEL_TYPE_FREAD_ERROR = -3,
@@ -52,7 +53,8 @@ enum fscan_level_type_enum {
     FSCAN_LEVEL_FLAG_NO_BACKGROUND = 1 << 4,
 };
 
-enum fscan_errno_enum {
+enum fscan_errno_enum
+{
     FSCAN_READ_NO_ERROR = 0,
     FSCAN_READ_ERROR_FERROR,
     FSCAN_READ_ERROR_FREAD,
@@ -64,7 +66,9 @@ enum fscan_errno_enum {
     FSCAN_READ_ERROR_WRONG_VALUE,
     FSCAN_ERROR_INDEX_OUT_OF_RANGE,
 };
-typedef struct {
+
+typedef struct
+{
     FILE *data_fp;
     FILE *ptrs_fp;
     size_t size;
@@ -72,7 +76,8 @@ typedef struct {
     uint32_t ep;
 } fscan_file_chunk;
 
-typedef struct fscan_files {
+typedef struct fscan_files
+{
     fscan_file_chunk tile_chunk;
     fscan_file_chunk bitmap_chunk;
     fscan_file_chunk bg_chunk;
@@ -81,13 +86,6 @@ typedef struct fscan_files {
 
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
-    gexdev_u32vec tile_bmp_offsets;
-    // vectors of fscan_gfx_loc_info. Move to struct fscan_gfx_loc_info???
-    gexdev_univec tile_gfx_offsets;
-    gexdev_univec tile_anim_frames_offsets;
-    gexdev_univec obj_gfx_offsets;
-    gexdev_univec intro_gfx_offsets;
-    gexdev_univec bg_gfx_offsets;
 
     gexdev_bitflag_arr used_gfx_flags[3]; // 0 - main, 1 - intro, 2 - background
 
@@ -96,12 +94,25 @@ typedef struct fscan_files {
     jmp_buf *error_jmp_buf;
 } fscan_files;
 
-typedef struct {
-    uint32_t offset;
-    uint32_t ext_bmp_index;
-
+typedef struct fscan_gfx_info
+{
     uint8_t iteration[4];
-} fscan_gfx_loc_info;
+    uint8_t chunk_count;
+    uint32_t *ext_bmp_offsets; // array of length chunk_count
+    struct gfx_properties *gfx_props;
+    uint32_t gfx_offset;
+    uint32_t palette_offset;
+} fscan_gfx_info;
+
+typedef gexdev_univec fscan_gfx_info_vec;
+
+void fscan_gfx_info_close(fscan_gfx_info *ginf);
+
+/** @brief Closes vector of fscan_gfx_info objects */
+void fscan_scan_result_close(fscan_gfx_info_vec *result);
+
+/** @brief The same as scan_result_close. Closes vector of fscan_gfx_info objects */
+void fscan_gfx_info_vec_close(fscan_gfx_info_vec *vecp);
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
@@ -140,9 +151,15 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chunkp, gexdev_u32vec *i
   *
   * @param bmp_startpp pointer to pointer to bitmap in header_and_bitmapp. Can be NULL.
   * @return size of header_and_bitmap array. 0 means that function failed. */
-size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *extbmpchunkp, void **header_and_bitmapp,
-					   void **bmp_startpp, const u32 ext_bmp_offsets[], size_t ext_bmp_offsets_size,
-					   unsigned int *bmp_indexp, jmp_buf(*errbufp), gexdev_ptr_map *header_bmp_bindsp);
+size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp,
+                                           fscan_file_chunk *extbmpchunkp,
+                                           void **header_and_bitmapp,
+                                           void **bmp_startpp,
+                                           const u32 ext_bmp_offsets[],
+                                           size_t ext_bmp_offsets_size,
+                                           unsigned int *bmp_indexp,
+                                           jmp_buf(*errbufp),
+                                           gexdev_ptr_map *header_bmp_bindsp);
 
 uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_buf(*errbufp));
 

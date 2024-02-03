@@ -142,16 +142,28 @@ int main(int argc, char *argv[])
             sprintf(odirname, "%s-rip/", ifilename);
             options.save_path = odirname;
 
+            fscan_gfx_info_vec tiles = {0};
+            fscan_gfx_info_vec objects = {0};
+            fscan_gfx_info_vec intro_objects = {0};
+            fscan_gfx_info_vec backgrounds = {0};
             if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
                 if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
-                    fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_obj);
+                    fscan_files_obj.main_chunk.ptrs_fp){}
+                    //tiles = fscan_tiles_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_obj_gfx_scan(&fscan_files_obj);
+                    objects = fscan_obj_gfx_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
-                    fscan_intro_obj_gfx_scan(&fscan_files_obj);
+                    intro_objects = fscan_intro_obj_gfx_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
-                    fscan_background_scan(&fscan_files_obj);
+                    backgrounds = fscan_background_scan(&fscan_files_obj);
+
+                // Do something with the data
+                // ...
+
+                fscan_scan_result_close(&tiles);
+                fscan_scan_result_close(&objects);
+                fscan_scan_result_close(&intro_objects);
+                fscan_scan_result_close(&backgrounds);
 
                 fscan_files_close(&fscan_files_obj);
             }

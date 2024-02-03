@@ -76,8 +76,6 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
             case 0:
-                if (gexdev_u32vec_init_capcity(&files_stp->tile_bmp_offsets, 256))
-                    exit(0x1234);
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_TILES;
                 break; // invalid / non-exsiting chunk
@@ -95,8 +93,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
         switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->main_chunk)) {
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
-            case 0:gexdev_univec_init_capcity(&files_stp->obj_gfx_offsets, 1024, sizeof(fscan_gfx_loc_info));
-                gexdev_univec_init_capcity(&files_stp->tile_anim_frames_offsets, 256, sizeof(fscan_gfx_loc_info));
+            case 0:
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_MAIN;
                 break; // invalid / non-exsiting chunk
@@ -106,7 +103,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
         switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->intro_chunk)) {
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
-            case 0:gexdev_univec_init_capcity(&files_stp->intro_gfx_offsets, 1024, sizeof(fscan_gfx_loc_info));
+            case 0:
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_INTRO;
                 break; // invalid / non-exsiting chunk
@@ -116,7 +113,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
         switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->bg_chunk)) {
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
-            case 0:gexdev_univec_init_capcity(&files_stp->bg_gfx_offsets, 1024, sizeof(fscan_gfx_loc_info));
+            case 0:
                 break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_BACKGROUND;
                 break; // invalid / non-exsiting chunk
@@ -139,13 +136,7 @@ void fscan_files_close(fscan_files *files_stp)
     p_close_fchunk(&files_stp->intro_chunk);
     p_close_fchunk(&files_stp->bg_chunk);
 
-    gexdev_univec_close(&files_stp->tile_gfx_offsets);
-    gexdev_univec_close(&files_stp->obj_gfx_offsets);
-    gexdev_univec_close(&files_stp->intro_gfx_offsets);
-    gexdev_univec_close(&files_stp->bg_gfx_offsets);
     gexdev_u32vec_close(&files_stp->ext_bmp_offsets);
-    gexdev_u32vec_close(&files_stp->tile_bmp_offsets);
-    gexdev_univec_close(&files_stp->tile_anim_frames_offsets);
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[0]);
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]); // in case of error
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[2]); // in case of error
@@ -354,6 +345,7 @@ const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp)
     return &files_stp->tile_bmp_offsets;
 }
 
+// TODO: make new functions that do that but also read gfx properties
 void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fchp, gexdev_univec *vecp,
                                    const u8 iter[4], long gfx_ptr_off, size_t used_gfx_map_ind)
 {
@@ -382,6 +374,27 @@ void p_fscan_add_offset_to_loc_vec(fscan_files *files_stp, fscan_file_chunk *fch
     }
     gexdev_bitflag_arr_set(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8, 1);
     gexdev_univec_push_back(vecp, &gfx_loc_info);
+}
+
+void fscan_gfx_info_close(fscan_gfx_info *ginf)
+{
+    if (!ginf) return;
+    if (ginf->ext_bmp_offsets)
+        free(ginf->ext_bmp_offsets);
+}
+
+void fscan_scan_result_close(gexdev_univec *result)
+{
+    if (!result || !result->v) return;
+    for (size_t i = 0; i < result->size; i++){
+        fscan_gfx_info_close(&result->v[i]);
+    }
+    gexdev_univec_close(result);
+}
+
+void fscan_gfx_info_vec_close(fscan_gfx_info_vec *vecp)
+{
+    fscan_scan_result_close(vecp);
 }
 
 static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)
