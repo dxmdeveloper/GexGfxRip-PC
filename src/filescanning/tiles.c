@@ -22,20 +22,27 @@ p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint
 
 // ---------------- FUNC DEFINITIONS ----------------
 
-// TODO: reimplement this like fscan_obj_gfx_scan. Collect offsets first.
-size_t fscan_tiles_scan(fscan_files files_stp[static 1])
+fscan_gfx_info_vec fscan_tiles_scan(fscan_files files_stp[static 1])
 {
     fscan_file_chunk *mchp = &files_stp->main_chunk;
-    size_t total = 0;
+    fscan_gfx_info_vec ginfv = {0};
+
+    // initialize vector
+    gexdev_univec_init_capcity(&ginfv, 256, sizeof(fscan_gfx_info));
 
     if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.ptrs_fp) {
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[0], files_stp->main_chunk.size / 8);
     }
-    files_stp->ext_bmp_counter = 0; // TODO: check if this does not mess up with other scans
 
     // ---------------------- error handling ----------------------
-    jmp_buf **errbufpp = &files_stp->error_jmp_buf;
-    FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "fscan_tiles_scan error");)
+    jmp_buf errbuf;
+    jmp_buf *errbufp = &errbuf;
+    if(setjmp(errbuf)){
+        gexdev_univec_close(&ginfv);
+        ginfv.v = NULL;
+        dbg_errlog("fscan_background_scan error\n");
+        return ginfv;
+    }
     // -----------------------------------------------------------
 
     // ----- tile file chunk scan for bitmap offsets -----
@@ -45,20 +52,20 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1])
     u32 block[32] = {0};
 
     fseek(mchp->ptrs_fp, mchp->ep + 0x28, SEEK_SET);
-    fscan_read_gexptr_and_follow(mchp, 0, *errbufpp);
+    fscan_read_gexptr_and_follow(mchp, 0, errbufp);
 
     // read offsets of tile gfx blocks
-    fscan_read_gexptr_null_term_arr(mchp, block, 32, *errbufpp);
+    fscan_read_gexptr_null_term_arr(mchp, block, 32, errbufp);
 
     for (u8 i = 0; i < 32 && block[i]; i++) {
         u32 gfxid = 0;
         u32 tile_anims_off = 0;
 
         fseek(mchp->ptrs_fp, block[i], SEEK_SET);
-        tile_anims_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp);
+        tile_anims_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, errbufp);
 
         if (tile_anims_off >= mchp->size + mchp->offset - 4)
-            longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
+            longjmp(*errbufp, FSCAN_READ_ERROR_INVALID_POINTER);
 
         // base tile graphics
         fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read tile graphic id
@@ -79,11 +86,11 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1])
             u32 aframeset_off = 0;
 
             fseek(mchp->ptrs_fp, tile_anims_off, SEEK_SET);
-            while ((aframeset_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, *errbufpp))) {
+            while ((aframeset_off = fscan_read_gexptr(mchp->ptrs_fp, mchp->offset, errbufp))) {
 
                 fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read graphic id
                 if (aframeset_off >= mchp->size + mchp->offset - 4)
-                    longjmp(**errbufpp, FSCAN_READ_ERROR_INVALID_POINTER);
+                    longjmp(*errbufp, FSCAN_READ_ERROR_INVALID_POINTER);
 
                 // going to frames of tile animation
                 fseek(mchp->ptrs_fp, aframeset_off, SEEK_SET);
@@ -98,7 +105,6 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1])
                     p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0);
                     fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read next graphic offset
                     aframe_ind++;
-                    total++;
                 }
 
                 fseek(mchp->ptrs_fp, tile_anims_off + 20 * ++anim_ind, SEEK_SET);
@@ -106,9 +112,8 @@ size_t fscan_tiles_scan(fscan_files files_stp[static 1])
         }
     }
 
-    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]);
-    FSCAN_ERRBUF_REVERT(errbufpp);
-    return total;
+    gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[0]);
+    return ginfv;
 }
 
 static int

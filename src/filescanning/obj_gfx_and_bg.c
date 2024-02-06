@@ -25,9 +25,12 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
                            gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4]);
 
 inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
-                                              fscan_file_chunk fchp[1],
-                                              univec offvec[1],
-                                              size_t used_gfx_flags_index);
+                                            fscan_file_chunk fchp[1],
+                                            univec ginfv[1],
+                                            size_t used_gfx_flags_index);
+
+fscan_gfx_info p_collect_gfx_info(fscan_files *files_stp, fscan_file_chunk *fchp, const u8 iter[4],
+                                  size_t used_gfx_map_ind, bool ext_bmp_cnt_inc, jmp_buf *errbufp);
 
 // _____________________________________ function definitions _____________________________________
 
@@ -38,15 +41,20 @@ static u32 p_cb_bmp_header_binds_compute_index(const void *key)
 
 fscan_gfx_info_vec fscan_obj_gfx_scan(fscan_files *files_stp)
 {
-    fscan_gfx_info_vec ginf = {0};
+    fscan_gfx_info_vec ginfv = {0};
 
     if (!files_stp->main_chunk.ptrs_fp)
-        return ginf;
+        return ginfv;
 
     // initialize vector
-    gexdev_univec_init_capcity(&ginf, 256, sizeof(fscan_gfx_info));
+    gexdev_univec_init_capcity(&ginfv, 256, sizeof(fscan_gfx_info));
 
+    // create bitflag array if not created yet. It will be used to mark used gfx entries
     if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.ptrs_fp) {
+        for (int i = 0; i < 3; i++) {
+            if (files_stp->used_gfx_flags[i].arr)
+                gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[i]);
+        }
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[0], files_stp->main_chunk.size / 8);
     }
 
@@ -56,19 +64,19 @@ fscan_gfx_info_vec fscan_obj_gfx_scan(fscan_files *files_stp)
     files_stp->ext_bmp_counter = 0;
 
     // don't close the bitflag array because we will need it later
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, &ginf, 0);
-    return ginf;
+    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, &ginfv, 0);
+    return ginfv;
 }
 
 fscan_gfx_info_vec fscan_intro_obj_gfx_scan(fscan_files *files_stp)
 {
-    fscan_gfx_info_vec ginf = {0};
+    fscan_gfx_info_vec ginfv = {0};
 
     if (!files_stp->intro_chunk.ptrs_fp)
-        return ginf;
+        return ginfv;
 
     // initialize vector
-    gexdev_univec_init_capcity(&ginf, 256, sizeof(fscan_gfx_info));
+    gexdev_univec_init_capcity(&ginfv, 256, sizeof(fscan_gfx_info));
 
     if (!files_stp->used_gfx_flags[1].arr && files_stp->bitmap_chunk.ptrs_fp) {
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[1], files_stp->intro_chunk.size / 8);
@@ -78,48 +86,50 @@ fscan_gfx_info_vec fscan_intro_obj_gfx_scan(fscan_files *files_stp)
         printf("----------- intro object scan ----------\n");
 
     // Scan main chunk before if not scanned yet to correctly set the ext_bmp_counter
-    if (!files_stp->used_gfx_flags[0].arr) {
+    if (!files_stp->used_gfx_flags[0].arr || files_stp->used_gfx_flags[1].arr) {
         fscan_gfx_info_vec temp = fscan_obj_gfx_scan(files_stp);
         gexdev_univec_close(&temp);
     }
 
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, &ginf, 1);
-    return ginf;
+    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, &ginfv, 1);
+    return ginfv;
 }
 
 fscan_gfx_info_vec fscan_background_scan(fscan_files *files_stp)
 {
-    fscan_gfx_info_vec ginf = {0};
+    fscan_gfx_info_vec ginfv = {0};
 
     if (!files_stp->bg_chunk.ptrs_fp)
-        return ginf;
+        return ginfv;
 
 
     // initialize vector
-    gexdev_univec_init_capcity(&ginf, 256, sizeof(fscan_gfx_info));
+    gexdev_univec_init_capcity(&ginfv, 256, sizeof(fscan_gfx_info));
 
     if (!files_stp->used_gfx_flags[2].arr && files_stp->bitmap_chunk.ptrs_fp) {
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[2], files_stp->bg_chunk.size / 8);
     }
 
+    // error handling
     jmp_buf errbuf;
     jmp_buf *errbufp = &errbuf;
-    if(setjmp(errbuf)){
-        gexdev_univec_close(&ginf);
-        ginf.v = NULL;
+    if (setjmp(errbuf)) {
+        gexdev_univec_close(&ginfv);
+        ginfv.v = NULL;
         dbg_errlog("fscan_background_scan error\n");
-        return ginf;
+        return ginfv;
     }
 
     if (files_stp->option_verbose)
         printf("------------ background scan ------------\n");
 
     // Scan main chunk and intro before if not scanned yet to correctly set the ext_bmp_counter
-    {
+    if (files_stp->bitmap_chunk.ptrs_fp) {
         fscan_gfx_info_vec temp = {0};
-        if (!files_stp->used_gfx_flags[0].arr)
+        if (!files_stp->used_gfx_flags[0].arr || files_stp->used_gfx_flags[2].arr)
             temp = fscan_obj_gfx_scan(files_stp);
 
+        // If first if condition is true, then the second one is also true after the object scan.
         if (!files_stp->used_gfx_flags[1].arr)
             temp = fscan_intro_obj_gfx_scan(files_stp);
         gexdev_univec_close(&temp);
@@ -160,30 +170,31 @@ fscan_gfx_info_vec fscan_background_scan(fscan_files *files_stp)
 
                 for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++) {
                     u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
-                    p_fscan_add_offset_to_loc_vec(files_stp, bgchp, &ginf, it, 8, 2);
-                    fseek(bgfp, 4, SEEK_CUR);
+                    fscan_gfx_info ginf = p_collect_gfx_info(files_stp, bgchp, it, 2, true, errbufp);
+                    gexdev_univec_push_back(&ginfv, &ginf);
                 }
             }
         }
     }
 
+    // cleanup
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[0]);
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[1]);
     gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[2]);
-    return ginf;
+    return ginfv;
 }
 
 inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
-                                              fscan_file_chunk fchp[1],
-                                              univec offvec[1],
-                                              size_t used_gfx_flags_index)
+                                            fscan_file_chunk fchp[1],
+                                            univec ginfv[1],
+                                            size_t used_gfx_flags_index)
 {
     // error handling
     jmp_buf errbuf;
     jmp_buf *errbufp = &errbuf;
-    if(setjmp(errbuf)){
-        gexdev_univec_close(offvec);
-        offvec->v = NULL;
+    if (setjmp(errbuf)) {
+        gexdev_univec_close(ginfv);
+        ginfv->v = NULL;
         dbg_errlog("p_scan_chunk_for_obj_gfx error\n");
         return;
     }
@@ -228,16 +239,15 @@ inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
 
                 for (uint iv = 0; iv < sizeofarr(combined_gfx_offs) && combined_gfx_offs[iv]; iv++) {
                     u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
-
-                    p_fscan_add_offset_to_loc_vec(files_stp, fchp, offvec, it, 8, used_gfx_flags_index);
-                    fseek(fchp->ptrs_fp, 4, SEEK_CUR);
-                    total++;
+                    fscan_gfx_info ginf = p_collect_gfx_info(files_stp, fchp, it, used_gfx_flags_index, true, errbufp);
+                    gexdev_univec_push_back(ginfv, &ginf);
                 }
             }
         }
     }
 }
 
+//! OBSOLETE
 static int
 p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], void *pass2cb, onfound_cb_t cb,
                            gexdev_ptr_map *bmp_headers_binds_mapp, uint *iterbufp, uint iters[4])
@@ -251,18 +261,11 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
     size_t gfx_size = 0;
     u32 gfx_flags = 0;
     struct gfx_palette pal = {0};
-    struct gfx_properties gfx_props = {0};
 
     // error handling
     FSCAN_ERRBUF_CHAIN_ADD(errbufpp, fprintf(stderr, "p_prep_obj_gfx_and_exec_cbfread error\n"); if (header_and_bmp)
         free(header_and_bmp);)
 
-    // graphic properties read
-    fread_LE_U16(&gfx_props.pos_y, 1, main_chp->ptrs_fp);
-    fread_LE_U16(&gfx_props.pos_x, 1, main_chp->ptrs_fp);
-    fread_LE_U32(&gfx_flags, 1, main_chp->ptrs_fp);
-    gfx_props.is_flipped_vertically = gfx_flags & (1 << 7);
-    gfx_props.is_flipped_horizontally = gfx_flags & (1 << 6);
 
     // print information
     if (files_stp->option_verbose) {
@@ -304,10 +307,6 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
     fseek(main_chp->data_fp, paletteOffset, SEEK_SET);
     gfx_palette_parsef(main_chp->data_fp, &pal);
 
-    // finish reading properties
-    fread_LE_U32(&gfx_flags, 1, main_chp->ptrs_fp);
-    gfx_flags = gfx_flags >> 16;
-    gfx_props.is_semi_transparent = gfx_flags & (1 << 15);
     // TODO: Investigate for more properties
 
     // callback call
@@ -318,4 +317,77 @@ p_prep_obj_gfx_and_exec_cb(fscan_files files_stp[1], fscan_file_chunk fchp[1], v
 
     FSCAN_ERRBUF_REVERT(errbufpp);
     return 1;
+}
+
+fscan_gfx_info p_collect_gfx_info(fscan_files *files_stp, fscan_file_chunk *fchp, const u8 iter[4],
+                                  size_t used_gfx_map_ind, bool ext_bmp_cnt_inc, jmp_buf *errbufp)
+{
+    u32 extind = files_stp->ext_bmp_counter;
+    u32 type = 0;
+    u32 gfx_flags = 0;
+    fscan_gfx_info ginf = {.iteration = {iter[3], iter[2], iter[1], iter[0]}}; // little endian key
+
+    // graphic properties read
+    fread_LE_U16(&ginf.gfx_props.pos_y, 1, fchp->ptrs_fp);
+    fread_LE_U16(&ginf.gfx_props.pos_x, 1, fchp->ptrs_fp);
+    fread_LE_U32(&gfx_flags, 1, fchp->ptrs_fp);
+    ginf.gfx_props.is_flipped_vertically = gfx_flags & (1 << 7);
+    ginf.gfx_props.is_flipped_horizontally = gfx_flags & (1 << 6);
+
+    // palette offset read without follow
+    ginf.palette_offset = fscan_read_gexptr(fchp->ptrs_fp, fchp->offset, files_stp->error_jmp_buf);
+
+    // header offset read and follow
+    u32 gfxoff = ginf.gfx_offset = fscan_read_gexptr_and_follow(fchp, 16, files_stp->error_jmp_buf);
+
+    if (!fread_LE_U32(&type, 1, fchp->ptrs_fp)) {
+        if (errbufp)
+            longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
+        else {
+            ginf.gfx_offset = 0;
+            return ginf;
+        }
+    }
+
+    // count gfx chunks
+    struct gex_gfxchunk gchunk = {0};
+    for (; ginf.chunk_count < IMG_CHUNKS_LIMIT; ginf.chunk_count++) {
+        gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk);
+        if (gchunk.width == 0) break;
+    }
+
+    if ((type & 0xF0) == 0xC0
+        && gexdev_bitflag_arr_get(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8)
+            == 0) /* graphic not used before */
+    {
+        // check if there are enough offsets in the ext_bmp_offsets array
+        if(extind + ginf.chunk_count > files_stp->ext_bmp_offsets.size) {
+            if (errbufp)
+                longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
+            else {
+                ginf.gfx_offset = 0;
+                return ginf;
+            }
+        }
+        // increment ext_bmp_counter
+        if (ext_bmp_cnt_inc)
+            files_stp->ext_bmp_counter += ginf.chunk_count;
+
+        // allocate memory for ext_bmp_offsets
+        ginf.ext_bmp_offsets = malloc(ginf.chunk_count * sizeof(u32));
+        if (!ginf.ext_bmp_offsets)
+           exit(0xbeef);
+
+        // copy ext_bmp_offsets from files_stp->ext_bmp_offsets
+        memcpy(ginf.ext_bmp_offsets, files_stp->ext_bmp_offsets.v + extind, ginf.chunk_count * sizeof(u32));
+    }
+    // set used flag
+    gexdev_bitflag_arr_set(&files_stp->used_gfx_flags[used_gfx_map_ind], gfxoff / 8, 1);
+
+    // finish reading properties
+    fread_LE_U32(&gfx_flags, 1, fchp->ptrs_fp);
+    gfx_flags = gfx_flags >> 16;
+    ginf.gfx_props.is_semi_transparent = gfx_flags & (1 << 15);
+
+    return ginf;
 }

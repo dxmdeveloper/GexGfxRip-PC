@@ -87,7 +87,7 @@ typedef struct fscan_files
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
 
-    gexdev_bitflag_arr used_gfx_flags[3]; // 0 - main, 1 - intro, 2 - background
+    gexdev_bitflag_arr used_gfx_flags[3]; // 0 - main (tiles also), 1 - intro, 2 - background
 
     bool option_verbose;
 
@@ -99,7 +99,7 @@ typedef struct fscan_gfx_info
     uint8_t iteration[4];
     uint8_t chunk_count;
     uint32_t *ext_bmp_offsets; // array of length chunk_count
-    struct gfx_properties *gfx_props;
+    struct gfx_properties gfx_props;
     uint32_t gfx_offset;
     uint32_t palette_offset;
 } fscan_gfx_info;
@@ -145,7 +145,7 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chunkp, gexdev_u32vec *i
   * position of ptrs_fp will be moved by 4.
   *
   * @param extbmpchunkp file chunk with external bitmaps. ptrs_fp will not be moved.
-  * @param header_and_bitmapp pointer to array that is destined to contain header data.
+  * @param header_and_bitmappp pointer to array that is destined to contain header data.
   * NOTICE: If function fail pointer can be set to NULL.
   * IMPORTANT: array must be freed outside this function.
   *
@@ -153,7 +153,7 @@ int fscan_cb_read_offset_to_vec_2lvls(fscan_file_chunk *chunkp, gexdev_u32vec *i
   * @return size of header_and_bitmap array. 0 means that function failed. */
 size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp,
                                            fscan_file_chunk *extbmpchunkp,
-                                           void **header_and_bitmapp,
+                                           void **header_and_bitmappp,
                                            void **bmp_startpp,
                                            const u32 ext_bmp_offsets[],
                                            size_t ext_bmp_offsets_size,

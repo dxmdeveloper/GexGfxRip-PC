@@ -58,13 +58,13 @@ struct gfx_palette {
 };
 
 /** @brief structure with graphic properties */
-struct gfx_properties {
+typedef struct gfx_properties {
     uint16_t pos_x;
     uint16_t pos_y;
     bool is_semi_transparent;
     bool is_flipped_horizontally;
     bool is_flipped_vertically;
-};
+} gfx_properties;
 
 // --- structures parsing ---
 /** @brief parses gfxHeader from input file stream. Shifts stream cursor. Function does not validate data!
