@@ -1,5 +1,6 @@
 #include "tiles.h"
 #include "filescanning.h"
+#include "prv_filescanning.h"
 #include "../helpers/basicdefs.h"
 #include "../graphics/gfx.h"
 #include "../helpers/binary_parse.h"
@@ -20,6 +21,13 @@ p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint
                                  uint bmp_index[32], void *pass2cb,
                                  void cb(void *, const void *, const void *, const struct gfx_palette *, u16, u16));
 
+static inline fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
+                                                fscan_file_chunk fchp[static 1],
+                                                const u8 iter[static 4],
+                                                const fscan_gfx_info_vec ginfv[static 1],
+                                                jmp_buf (*errbufp),
+                                                u32 ext_bmp_counter[static 1]);
+
 // ---------------- FUNC DEFINITIONS ----------------
 
 fscan_gfx_info_vec fscan_tiles_scan(fscan_files files_stp[static 1])
@@ -37,7 +45,7 @@ fscan_gfx_info_vec fscan_tiles_scan(fscan_files files_stp[static 1])
     // ---------------------- error handling ----------------------
     jmp_buf errbuf;
     jmp_buf *errbufp = &errbuf;
-    if(setjmp(errbuf)){
+    if (setjmp(errbuf)) {
         gexdev_univec_close(&ginfv);
         ginfv.v = NULL;
         dbg_errlog("fscan_background_scan error\n");
@@ -73,7 +81,7 @@ fscan_gfx_info_vec fscan_tiles_scan(fscan_files files_stp[static 1])
             u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, 0};
             fseek(mchp->ptrs_fp, -4, SEEK_CUR); // back to tile graphic id
 
-            p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, it, 4, 0);
+            //p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_gfx_offsets, it, 4, 0);
 
             fseek(mchp->ptrs_fp, 4, SEEK_CUR);
             fread_LE_U32(&gfxid, 1, mchp->ptrs_fp); // read next tile graphic id
@@ -99,10 +107,11 @@ fscan_gfx_info_vec fscan_tiles_scan(fscan_files files_stp[static 1])
                 u32 gfx_off = 0;
                 fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read first graphic offset
                 while (gfx_off) {
+                    // TODO: FIX INFINITE LOOP
                     u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, aframe_ind};
 
                     fseek(mchp->ptrs_fp, -4, SEEK_CUR); // back to graphic offset
-                    p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0);
+                    // p_fscan_add_offset_to_loc_vec(files_stp, mchp, &files_stp->tile_anim_frames_offsets, it, 0, 0);
                     fread_LE_U32(&gfx_off, 1, mchp->ptrs_fp); // read next graphic offset
                     aframe_ind++;
                 }
@@ -127,7 +136,7 @@ p_prep_tile_gfx_data_and_exec_cb(fscan_files files_stp[1], u32 tile_gfx_id, uint
     size_t gfx_size = 0;
     struct gfx_palette pal = {0};
     fscan_file_chunk *mchp = &files_stp->main_chunk;
-    fscan_file_chunk *tchp = &files_stp->tile_chunk;
+    fscan_file_chunk *tchp = &files_stp->tile_bmp_chunk;
     jmp_buf **errbufpp = &files_stp->error_jmp_buf;
 
     // error handling
@@ -189,4 +198,18 @@ static u32 p_cb_tile_header_binds_compute_index(const void *key)
 {
     const u32 *u32key = key;
     return *u32key / 32;
+}
+
+static inline fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
+                                                fscan_file_chunk fchp[static 1],
+                                                const u8 iter[static 4],
+                                                const fscan_gfx_info_vec ginfv[static 1],
+                                                jmp_buf (*errbufp),
+                                                u32 ext_bmp_counter[static 1])
+{
+    fscan_gfx_info ginf = {.iteration = {iter[3], iter[2], iter[1], iter[0]}}; // little endian key
+    p_fscan_collect_gfx_info_common_part(files_stp, fchp, 0, &files_stp->tile_ext_bmp_offsets, ginfv, errbufp,
+                                         ext_bmp_counter, &ginf);
+
+    return ginf;
 }

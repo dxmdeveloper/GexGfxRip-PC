@@ -68,7 +68,35 @@ static int strcmp_ci(const char *str1, const char *str2)
     return *str1 - *str2;
 }
 
-static void printUsageHelp()
+static void print_fscan_gfx_info(const fscan_gfx_info *ginf){
+    if(!ginf){
+        printf("NULLPTR\n");
+        return;
+    }
+
+    printf("gfx_offset: 0x%08X\n", ginf->gfx_offset);
+    printf("palette_offset: 0x%08X\n", ginf->palette_offset);
+    printf("chunk_count: %u\n", ginf->chunk_count);
+    // gfx_props
+    printf("gfx_props: \n");
+    printf("\t .pos_x %u\n", ginf->gfx_props.pos_x);
+    printf("\t .pos_y %u\n", ginf->gfx_props.pos_y);
+    printf("\t .is_semi_transparent %u\n", ginf->gfx_props.is_semi_transparent);
+    printf("\t .is_flipped_horizontally %u\n", ginf->gfx_props.is_flipped_horizontally);
+    printf("\t .is_flipped_vertically %u\n", ginf->gfx_props.is_flipped_vertically);
+    // ext_bmp_offsets
+    if(ginf->ext_bmp_offsets && ginf->chunk_count > 0) {
+        printf("ext_bmp_offsets: { ");
+        for (size_t i = 0; i < ginf->chunk_count; i++) {
+            printf("0x%08X ", ginf->ext_bmp_offsets[i]);
+        }
+        printf("}\n");
+    }
+
+    printf("iteration: [%u, %u, %u, %u]\n", ginf->iteration[3], ginf->iteration[2], ginf->iteration[1], ginf->iteration[0]);
+}
+
+static void print_usage_info()
 {
     printf("Usage: gexgfxrip [OPTION]... [FILE]\n");
     printf("Extracts graphics from Gex (PC) game files.\n");
@@ -86,6 +114,7 @@ int main(int argc, char *argv[])
     char odirname[256];
     jmp_buf errbuf;
     int errno = 0;
+    int verbose = 0;
     int type = TYPE_ALL;
 
     // Application options
@@ -95,11 +124,13 @@ int main(int argc, char *argv[])
     };
 
     switch (xpgetopt_long(argc, argv, "hvt:", options_table, NULL)) {
-        case 'h':printUsageHelp();
+        case 'h':print_usage_info();
             return 0;
-        case 'v':fscan_files_obj.option_verbose = true;
+        case 'v':
+            fscan_files_obj.option_verbose = true;
+            verbose = 1;
             break;
-        case '?':printUsageHelp();
+        case '?':print_usage_info();
             return 1;
         case 't':
             if (strcmp_ci(xpoptarg, "all") == 0)
@@ -125,6 +156,11 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    fscan_gfx_info_vec tiles = {0};
+    fscan_gfx_info_vec objects = {0};
+    fscan_gfx_info_vec intro_objects = {0};
+    fscan_gfx_info_vec backgrounds = {0};
+
     // if no additional program arguments or asterisk
     if (argc == 1) {
         char ifilename[11];
@@ -142,12 +178,8 @@ int main(int argc, char *argv[])
             sprintf(odirname, "%s-rip/", ifilename);
             options.save_path = odirname;
 
-            fscan_gfx_info_vec tiles = {0};
-            fscan_gfx_info_vec objects = {0};
-            fscan_gfx_info_vec intro_objects = {0};
-            fscan_gfx_info_vec backgrounds = {0};
             if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.ptrs_fp &&
                     fscan_files_obj.main_chunk.ptrs_fp){}
                     //tiles = fscan_tiles_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
@@ -176,15 +208,39 @@ int main(int argc, char *argv[])
                 sprintf(odirname, "%s-rip/", argv[xpoptind]);
                 options.save_path = odirname;
 
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_chunk.ptrs_fp &&
-                    fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_tiles_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
-                    fscan_obj_gfx_scan(&fscan_files_obj);
+                // TODO: move to separate function
+                //
+                //////////////////////////////////////////
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.ptrs_fp &&
+                    fscan_files_obj.main_chunk.ptrs_fp){}
+                    tiles = fscan_tiles_scan(&fscan_files_obj);
+                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp) {
+                    objects = fscan_obj_gfx_scan(&fscan_files_obj);
+                    if (verbose){
+                        for (size_t ii = 0; ii < objects.size; ii++) {
+                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii));
+                            printf("\n");
+                        }
+                    }
+                }
                 if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
-                    fscan_intro_obj_gfx_scan(&fscan_files_obj);
+                    intro_objects = fscan_intro_obj_gfx_scan(&fscan_files_obj);
                 if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
-                    fscan_background_scan(&fscan_files_obj);
+                    backgrounds = fscan_background_scan(&fscan_files_obj);
+
+                // print all objects
+                for (size_t ii = 0; ii < objects.size; ii++) {
+                    print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii));
+                    printf("\n");
+                }
+
+                // Do something with the data
+                // ...
+
+                fscan_scan_result_close(&tiles);
+                fscan_scan_result_close(&objects);
+                fscan_scan_result_close(&intro_objects);
+                fscan_scan_result_close(&backgrounds);
 
                 fscan_files_close(&fscan_files_obj);
             } else {

@@ -37,6 +37,7 @@ add_executable(GexGfxRip_PC
         src/helpers/error_handler.h
         src/essentials/bitflag_array.h
         src/essentials/bitflag_array.c
+        src/filescanning/prv_filescanning.h
 )
 
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})
