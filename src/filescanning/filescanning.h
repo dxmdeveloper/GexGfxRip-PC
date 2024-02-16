@@ -70,7 +70,7 @@ enum fscan_errno_enum
 typedef struct
 {
     FILE *data_fp;
-    FILE *ptrs_fp;
+    FILE *fp;
     size_t size;
     uint32_t offset;
     uint32_t ep;

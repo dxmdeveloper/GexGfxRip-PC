@@ -179,14 +179,14 @@ int main(int argc, char *argv[])
             options.save_path = odirname;
 
             if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.ptrs_fp &&
-                    fscan_files_obj.main_chunk.ptrs_fp){}
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.fp &&
+                    fscan_files_obj.main_chunk.fp){}
                     //tiles = fscan_tiles_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp)
+                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp)
                     objects = fscan_obj_gfx_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
+                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.fp)
                     intro_objects = fscan_intro_obj_gfx_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
+                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.fp)
                     backgrounds = fscan_background_scan(&fscan_files_obj);
 
                 // Do something with the data
@@ -211,10 +211,16 @@ int main(int argc, char *argv[])
                 // TODO: move to separate function
                 //
                 //////////////////////////////////////////
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.ptrs_fp &&
-                    fscan_files_obj.main_chunk.ptrs_fp){}
+                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.fp &&
+                    fscan_files_obj.main_chunk.fp){}
                     tiles = fscan_tiles_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.ptrs_fp) {
+                    if(verbose){
+                        for (size_t ii = 0; ii < tiles.size; ii++) {
+                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&tiles, ii));
+                            printf("\n");
+                        }
+                    }
+                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp) {
                     objects = fscan_obj_gfx_scan(&fscan_files_obj);
                     if (verbose){
                         for (size_t ii = 0; ii < objects.size; ii++) {
@@ -223,9 +229,9 @@ int main(int argc, char *argv[])
                         }
                     }
                 }
-                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.ptrs_fp)
+                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.fp)
                     intro_objects = fscan_intro_obj_gfx_scan(&fscan_files_obj);
-                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.ptrs_fp)
+                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.fp)
                     backgrounds = fscan_background_scan(&fscan_files_obj);
 
                 // print all objects

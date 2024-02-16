@@ -50,14 +50,14 @@ fscan_gfx_info_vec fscan_obj_gfx_scan(fscan_files *files_stp)
 {
     fscan_gfx_info_vec ginfv = {0};
 
-    if (!files_stp->main_chunk.ptrs_fp)
+    if (!files_stp->main_chunk.fp)
         return ginfv;
 
     // initialize vector
     gexdev_univec_init_capcity(&ginfv, 256, sizeof(fscan_gfx_info));
 
     // create bitflag array if not created yet. It will be used to mark used gfx entries
-    if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.ptrs_fp) {
+    if (!files_stp->used_gfx_flags[0].arr && files_stp->bitmap_chunk.fp) {
         for (int i = 0; i < 3; i++) {
             if (files_stp->used_gfx_flags[i].arr)
                 gexdev_bitflag_arr_close(&files_stp->used_gfx_flags[i]);
@@ -79,7 +79,7 @@ fscan_gfx_info_vec fscan_intro_obj_gfx_scan(fscan_files *files_stp)
 {
     fscan_gfx_info_vec ginfv = {0};
 
-    if (!files_stp->intro_chunk.ptrs_fp)
+    if (!files_stp->intro_chunk.fp)
         return ginfv;
 
     // initialize vector
@@ -91,7 +91,7 @@ fscan_gfx_info_vec fscan_intro_obj_gfx_scan(fscan_files *files_stp)
         gexdev_univec_close(&temp);
     }
 
-    if (!files_stp->used_gfx_flags[1].arr && files_stp->bitmap_chunk.ptrs_fp) {
+    if (!files_stp->used_gfx_flags[1].arr && files_stp->bitmap_chunk.fp) {
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[1], files_stp->intro_chunk.size / 8);
     }
 
@@ -107,7 +107,7 @@ fscan_gfx_info_vec fscan_background_scan(fscan_files *files_stp)
 {
     fscan_gfx_info_vec ginfv = {0};
 
-    if (!files_stp->bg_chunk.ptrs_fp)
+    if (!files_stp->bg_chunk.fp)
         return ginfv;
 
 
@@ -128,7 +128,7 @@ fscan_gfx_info_vec fscan_background_scan(fscan_files *files_stp)
         printf("------------ background scan ------------\n");
 
     // Scan main chunk and intro before if not scanned yet to correctly set the ext_bmp_counter
-    if (files_stp->bitmap_chunk.ptrs_fp) {
+    if (files_stp->bitmap_chunk.fp) {
         fscan_gfx_info_vec temp = {0};
         if (!files_stp->used_gfx_flags[0].arr || files_stp->used_gfx_flags[2].arr)
             temp = fscan_obj_gfx_scan(files_stp);
@@ -140,13 +140,13 @@ fscan_gfx_info_vec fscan_background_scan(fscan_files *files_stp)
     }
 
     // create bitflag array if not created yet.
-    if (!files_stp->used_gfx_flags[2].arr && files_stp->bitmap_chunk.ptrs_fp) {
+    if (!files_stp->used_gfx_flags[2].arr && files_stp->bitmap_chunk.fp) {
         gexdev_bitflag_arr_create(&files_stp->used_gfx_flags[2], files_stp->bg_chunk.size / 8);
     }
 
     // Scan background file chunk
     fscan_file_chunk *bgchp = &files_stp->bg_chunk;
-    FILE *bgfp = bgchp->ptrs_fp;
+    FILE *bgfp = bgchp->fp;
 
     fseek(bgfp, bgchp->ep, SEEK_SET);
     fscan_read_gexptr_and_follow(bgchp, 24, errbufp);
@@ -215,7 +215,7 @@ inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
     u32 obj_offsets[256] = {0};
 
     //e+0x20gg [G{ g [G{ [G{ +24 g [G{ c };]   };] };] }+4;]
-    fseek(fchp->ptrs_fp, fchp->ep + 0x20, SEEK_SET);
+    fseek(fchp->fp, fchp->ep + 0x20, SEEK_SET);
 
     fscan_read_gexptr_and_follow(fchp, 0, errbufp);
     fscan_read_gexptr_and_follow(fchp, 0, errbufp);
@@ -225,20 +225,20 @@ inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
     for (uint i = 0; i < sizeofarr(obj_offsets) && obj_offsets[i]; i++) {
         if (i % 2) continue; // odd iterations skipped
 
-        fseek(fchp->ptrs_fp, obj_offsets[i], SEEK_SET);
+        fseek(fchp->fp, obj_offsets[i], SEEK_SET);
         if (!fscan_read_gexptr_and_follow(fchp, 0, errbufp)) continue;
 
         u32 anim_set_offs[128] = {0};
         fscan_read_gexptr_null_term_arr(fchp, anim_set_offs, sizeofarr(anim_set_offs), errbufp);
 
         for (uint ii = 0; ii < sizeofarr(anim_set_offs) && anim_set_offs[ii]; ii++) {
-            fseek(fchp->ptrs_fp, anim_set_offs[ii], SEEK_SET);
+            fseek(fchp->fp, anim_set_offs[ii], SEEK_SET);
 
             u32 anim_frame_offs[128] = {0};
             fscan_read_gexptr_null_term_arr(fchp, anim_frame_offs, sizeofarr(anim_frame_offs), errbufp);
 
             for (uint iii = 0; iii < sizeofarr(anim_frame_offs) && anim_frame_offs[iii]; iii++) {
-                fseek(fchp->ptrs_fp, anim_frame_offs[iii] + 24, SEEK_SET);
+                fseek(fchp->fp, anim_frame_offs[iii] + 24, SEEK_SET);
                 if (!fscan_read_gexptr_and_follow(fchp, 0, errbufp)) continue;
 
                 u32 combined_gfx_offs[128] = {0};
@@ -246,7 +246,7 @@ inline static void p_scan_chunk_for_obj_gfx(fscan_files files_stp[1],
 
                 for (uint iv = 0; iv < sizeofarr(combined_gfx_offs) && combined_gfx_offs[iv]; iv++) {
                     u8 it[4] = {(u8) i / 2 /* odd iterations skipped */, (u8) ii, (u8) iii, (u8) iv};
-                    fseek(fchp->ptrs_fp, combined_gfx_offs[iv], SEEK_SET);
+                    fseek(fchp->fp, combined_gfx_offs[iv], SEEK_SET);
 
                     fscan_gfx_info ginf = p_collect_gfx_info(files_stp, fchp, it,
                                                              used_gfx_flags_index, ginfv, errbufp);
@@ -340,9 +340,9 @@ fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1], fscan_file_ch
     //printf("offset: %lx\n", ftell(fchp->ptrs_fp));
 
     // graphic properties read
-    fread_LE_U16(&ginf.gfx_props.pos_y, 1, fchp->ptrs_fp);
-    fread_LE_U16(&ginf.gfx_props.pos_x, 1, fchp->ptrs_fp);
-    fread_LE_U32(&gfx_flags, 1, fchp->ptrs_fp);
+    fread_LE_U16(&ginf.gfx_props.pos_y, 1, fchp->fp);
+    fread_LE_U16(&ginf.gfx_props.pos_x, 1, fchp->fp);
+    fread_LE_U32(&gfx_flags, 1, fchp->fp);
     ginf.gfx_props.is_flipped_vertically = gfx_flags & (1 << 7);
     ginf.gfx_props.is_flipped_horizontally = gfx_flags & (1 << 6);
 

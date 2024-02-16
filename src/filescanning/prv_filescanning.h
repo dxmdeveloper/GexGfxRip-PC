@@ -32,9 +32,9 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
     long saved_pos = 0;
 
     // header offset read
-    u32 gfxoff = ginf->gfx_offset = fscan_read_gexptr(fchp->ptrs_fp, fchp->offset, files_stp->error_jmp_buf);
+    u32 gfxoff = ginf->gfx_offset = fscan_read_gexptr(fchp->fp, fchp->offset, files_stp->error_jmp_buf);
 
-    if (!gfxoff || !fread_LE_U32(&type, 1, fchp->ptrs_fp)) {
+    if (!gfxoff || !fread_LE_U32(&type, 1, fchp->fp)) {
         if (errbufp) {
             dbg_errlog("Graphic offset out of range or file read error\n");
             longjmp(*errbufp, FSCAN_READ_ERROR_FREAD);
@@ -43,26 +43,28 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
             return -1;
         }
     }
+    // ! DEBUG
+    printf("gfxoff: %d\n", gfxoff);
 
     // read palette offset
-    fseek(fchp->ptrs_fp, saved_pos, SEEK_SET);
-    ginf->palette_offset = fscan_read_gexptr(fchp->ptrs_fp, 0, errbufp);
+    fseek(fchp->fp, saved_pos, SEEK_SET);
+    ginf->palette_offset = fscan_read_gexptr(fchp->fp, 0, errbufp);
 
     // finish reading properties
-    fread_LE_U32(&gfx_flags, 1, fchp->ptrs_fp);
+    fread_LE_U32(&gfx_flags, 1, fchp->fp);
     gfx_flags = gfx_flags >> 16;
     ginf->gfx_props.is_semi_transparent = gfx_flags & (1 << 15);
 
     // go to the graphic location
-    fseek(fchp->ptrs_fp, gfxoff + 16, SEEK_SET);
+    fseek(fchp->fp, gfxoff + 16, SEEK_SET);
 
     // read type signature
-    fread_LE_U32(&type, 1, fchp->ptrs_fp);
+    fread_LE_U32(&type, 1, fchp->fp);
 
     // count gfx chunks
     struct gex_gfxchunk gchunk = {0};
     for (; ginf->chunk_count < IMG_CHUNKS_LIMIT; ginf->chunk_count++) {
-        gex_gfxchunk_parsef(fchp->ptrs_fp, &gchunk);
+        gex_gfxchunk_parsef(fchp->fp, &gchunk);
         if (gchunk.width == 0) break;
     }
 
@@ -97,12 +99,14 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
         // find the gfx info with the same gfx_offset and copy the ext_bmp_offsets, gfx_props and chunk_count
         fscan_gfx_info *to_copy = NULL;
         for (int i = (int) ginfv->size - 1; i >= 0; i--) {
-            if (fscan_gfx_info_vec_at(ginfv, i)->gfx_offset == gfxoff) {
+            fscan_gfx_info *info = fscan_gfx_info_vec_at(ginfv, i);
+            if (info->gfx_offset == gfxoff) {
                 to_copy = fscan_gfx_info_vec_at(ginfv, i);
                 break;
             }
         }
-        if (!to_copy) exit(0xeeee); // should never happen
+        if (!to_copy)
+            exit(0xeeee); // should never happen
 
         ginf->ext_bmp_offsets = to_copy->ext_bmp_offsets;
         ginf->gfx_props = to_copy->gfx_props;
