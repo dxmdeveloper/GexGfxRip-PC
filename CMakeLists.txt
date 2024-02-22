@@ -12,10 +12,8 @@ include_directories(src/graphics)
 include_directories(src/helpers)
 
 add_executable(GexGfxRip_PC
-        src/essentials/ptr_map.c
-        src/essentials/ptr_map.h
-        src/essentials/stack.c
-        src/essentials/stack.h
+        src/essentials/paged_map.c
+        src/essentials/paged_map.h
         src/essentials/vector.c
         src/essentials/vector.h
         src/filescanning/filescanning.c
@@ -34,7 +32,6 @@ add_executable(GexGfxRip_PC
         src/helpers/xpgetopt/xpgetopt.c
         src/helpers/xpgetopt/xpgetopt.h
         src/filescanning/obj_gfx_and_bg.c
-        src/helpers/error_handler.h
         src/essentials/bitflag_array.h
         src/essentials/bitflag_array.c
         src/filescanning/prv_filescanning.h

@@ -10,4 +10,4 @@ struct fscan_files;
 typedef gexdev_univec fscan_gfx_info_vec;
 #endif
 
-fscan_gfx_info_vec fscan_tiles_scan(struct fscan_files *files_stp);
+int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec);

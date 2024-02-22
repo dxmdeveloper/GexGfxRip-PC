@@ -6,36 +6,12 @@
 #include "obj_gfx_and_bg.h"
 #include "../graphics/gfx.h"
 #include "../essentials/vector.h"
-#include "../essentials/stack.h"
-#include "../essentials/ptr_map.h"
+#include "../essentials/paged_map.h"
 #include "../essentials/bitflag_array.h"
 #include "basicdefs.h"
 
-#define FILE_MIN_SIZE 128
-
-// ONE USE PER CODE BLOCK!
-#define FSCAN_ERRBUF_CHAIN_ADD(errbufpp, extension_code)                \
-    jmp_buf new_error_jump_buffor;                                      \
-    int errbuf_errno = 0;                                               \
-    jmp_buf *prev_error_jump_bufforp = NULL;                            \
-    jmp_buf *additional_error_jump_buffor_ptr = &new_error_jump_buffor; \
-    jmp_buf **bufpp = errbufpp;                                         \
-    if ((bufpp))                                                        \
-    prev_error_jump_bufforp = *(bufpp);                                 \
-    if (!(bufpp))                                                       \
-    bufpp = &additional_error_jump_buffor_ptr;                          \
-    *(bufpp) = &new_error_jump_buffor;                                  \
-    if ((errbuf_errno = setjmp(new_error_jump_buffor))) {               \
-    extension_code *(bufpp) = prev_error_jump_bufforp;                  \
-    if (*(bufpp))                                                       \
-        longjmp(**(bufpp), errbuf_errno);                               \
-    else                                                                \
-        exit(errbuf_errno);                                             \
-    }
-
-#define FSCAN_ERRBUF_REVERT(bufpp) \
-    if (bufpp)                     \
-    *(bufpp) = prev_error_jump_bufforp
+#define FILE_MIN_SIZE 64
+#define TILE_BMP_MAX_CHUNKS 16
 
 /* ERRORS: -1 - failed to open a file, -2 - file is too small, -3 read error, 
    TYPES: 0 - loaded standard level file, 1 - loaded standalone gfx file
@@ -67,7 +43,7 @@ enum fscan_errno_enum
     FSCAN_ERROR_INDEX_OUT_OF_RANGE,
 };
 
-typedef struct
+typedef struct fscan_file_chunk
 {
     FILE *data_fp;
     FILE *fp;
@@ -86,9 +62,9 @@ typedef struct fscan_files
 
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
-    gexdev_u32vec tile_ext_bmp_offsets;
+    gexdev_u32vec tile_ext_bmp_offsets[TILE_BMP_MAX_CHUNKS];
 
-    gexdev_bitflag_arr used_gfx_flags[3]; // 0 - main (tiles also), 1 - intro, 2 - background
+    int last_scanned_chunk; // 0 - main (tiles also), 1 - intro, 2 - background
 
     bool option_verbose;
 
@@ -167,7 +143,7 @@ size_t fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp,
                                            size_t ext_bmp_offsets_size,
                                            unsigned int *bmp_indexp,
                                            jmp_buf(*errbufp),
-                                           gexdev_ptr_map *header_bmp_bindsp);
+                                           gexdev_paged_map *header_bmp_bindsp);
 
 uint32_t fscan_read_gexptr_and_follow(fscan_file_chunk *fchp, int addoff, jmp_buf(*errbufp));
 
@@ -185,4 +161,4 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
 /** @brief search tile bmp chunk for tile bitmaps and pushes offsets to files_stp->tile_bmp_offsets vector
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->tile_bmp_offsets. */
-const gexdev_u32vec *fscan_search_for_tile_bmps(fscan_files *files_stp);
+int fscan_search_for_tile_bmps(fscan_files *files_stp);
