@@ -162,3 +162,7 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->tile_bmp_offsets. */
 int fscan_search_for_tile_bmps(fscan_files *files_stp);
+
+int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output);
+
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output, int pos_x, int pos_y, int flags);

@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
                 //////////////////////////////////////////
                 if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.main_chunk.fp) {
                     gexdev_univec_init_capcity(&tiles, 100, sizeof(fscan_gfx_info));
-                    fscan_tiles_scan(&fscan_files_obj, NULL);
+                    fscan_tiles_scan(&fscan_files_obj, &tiles);
                     if (verbose) {
                         for (size_t ii = 0; ii < tiles.size; ii++) {
                             print_fscan_gfx_info(fscan_gfx_info_vec_at(&tiles, ii));
@@ -223,7 +223,7 @@ int main(int argc, char *argv[])
                 }
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp) {
                     gexdev_univec_init_capcity(&objects, 100, sizeof(fscan_gfx_info));
-                    fscan_obj_gfx_scan(&fscan_files_obj, NULL);
+                    fscan_obj_gfx_scan(&fscan_files_obj, &objects);
                     if (verbose){
                         for (size_t ii = 0; ii < objects.size; ii++) {
                             print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii));
@@ -233,11 +233,11 @@ int main(int argc, char *argv[])
                 }
                 if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.fp) {
                     gexdev_univec_init_capcity(&intro_objects, 100, sizeof(fscan_gfx_info));
-                    fscan_intro_obj_gfx_scan(&fscan_files_obj, NULL);
+                    fscan_intro_obj_gfx_scan(&fscan_files_obj, &intro_objects);
                 }
                 if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.fp) {
                     gexdev_univec_init_capcity(&backgrounds, 100, sizeof(fscan_gfx_info));
-                    fscan_background_scan(&fscan_files_obj, NULL);
+                    fscan_background_scan(&fscan_files_obj, &backgrounds);
                 }
 
 

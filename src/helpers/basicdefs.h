@@ -33,5 +33,5 @@ typedef struct u32pair_struct {
 #ifdef DEBUG
 #define dbg_errlog(str, ...) (fprintf(stderr, str, __VA_ARGS__))
 #else
-#define dbg_errlog(str, ...)
+#define dbg_errlog(str, ...) {}
 #endif

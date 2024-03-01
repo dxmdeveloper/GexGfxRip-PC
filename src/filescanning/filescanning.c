@@ -187,7 +187,7 @@ fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *ex
         return 0;
 
     total_bmp_size = gfxheader.type_signature & 4 ? gfx_calc_size_of_sprite(*header_and_bitmapp) :
-                     gfx_calc_size_of_bitmap(*header_and_bitmapp);
+                     gfx_calc_size_of_bitmap_gfx(*header_and_bitmapp);
 
     if (!total_bmp_size) {
         free(*header_and_bitmapp);
@@ -372,6 +372,12 @@ fscan_gfx_info *fscan_gfx_info_vec_at(const fscan_gfx_info_vec *vecp, size_t ind
     if (vecp->size <= index)
         return NULL;
     return &((fscan_gfx_info *) vecp->v)[index];
+}
+
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output,
+                                      int pos_x, int pos_y, int flags)
+{
+    return 0;
 }
 
 static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)
