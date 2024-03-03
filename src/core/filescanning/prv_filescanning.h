@@ -69,19 +69,18 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
     }
 
     if ((type & 0xF0) == 0xC0) {
-        // check if there are enough offsets in the ext_bmp_offsets array
-        if (extind + ginf->chunk_count > ext_bmp_offsets->size) {
-            if (errbufp)
-                longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
-            else {
-                ginf->gfx_offset = 0;
-                return -2;
-            }
-        }
-
         // if graphic wasn't used before
         if (gexdev_bitflag_arr_get(used_gfx_map, (gfxoff - fchp->offset) / 32)
             == 0) {
+            // check if there are enough offsets in the ext_bmp_offsets array
+            if (extind + ginf->chunk_count > ext_bmp_offsets->size) {
+                if (errbufp)
+                    longjmp(*errbufp, FSCAN_ERROR_INDEX_OUT_OF_RANGE);
+                else {
+                    ginf->gfx_offset = 0;
+                    return -2;
+                }
+            }
             // ext_bmp_counter increment
             (*ext_bmp_counter) += ginf->chunk_count;
             // set used flag

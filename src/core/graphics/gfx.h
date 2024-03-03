@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
-#include "basicdefs.h"
+#include "../helpers/basicdefs.h"
 
 #define IMG_CHUNKS_LIMIT 32
 #define IMG_MAX_WIDTH 2048
@@ -109,7 +109,7 @@ png_color bgr555_to_rgb888(u16 bgr555);
 /** @brief calcuates real size of bitmap (not sprite) from gfx headers
  *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
  *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
-size_t gfx_calc_size_of_bitmap_gfx(const void *gfx_headers);
+size_t gfx_calc_size_of_bitmap(const void *gfx_headers);
 
 /** @brief calcuates real size of sprite from gfx headers
  *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
@@ -123,7 +123,7 @@ size_t gfx_read_headers_alloc_aob(FILE *gfx_headers_fp, void **dest);
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw...
  *  @param gfx_headers pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_read_headers_alloc_aob if you work with FILE*
- *  @param bitmap_dat pointer to actual image data. IMPORTANT: Use gfx_calc_size_of_bitmap_gfx to ensure how many bytes are needed to be read and allocated.
+ *  @param bitmap_dat pointer to actual image data. IMPORTANT: Use gfx_calc_size_of_bitmap to ensure how many bytes are needed to be read and allocated.
  *  @return image matrix or null pointer if failed */
 uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[]);
 

@@ -187,7 +187,7 @@ fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *ex
         return 0;
 
     total_bmp_size = gfxheader.type_signature & 4 ? gfx_calc_size_of_sprite(*header_and_bitmapp) :
-                     gfx_calc_size_of_bitmap_gfx(*header_and_bitmapp);
+                     gfx_calc_size_of_bitmap(*header_and_bitmapp);
 
     if (!total_bmp_size) {
         free(*header_and_bitmapp);

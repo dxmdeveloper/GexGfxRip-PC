@@ -2,11 +2,12 @@
 #include <png.h>
 #include <stdlib.h>
 #include <ctype.h>
-#include "helpers/basicdefs.h"
-#include "filescanning/filescanning.h"
-#include "graphics/write_png.h"
-#include "graphics/gfx.h"
-#include "helpers/xpgetopt/xpgetopt.h"
+#include <helpers/basicdefs.h>
+#include <filescanning/filescanning.h>
+#include <graphics/write_png.h>
+#include <graphics/gfx.h>
+#include <helpers/xpgetopt/xpgetopt.h>
+#include <helpers/binary_parse.h>
 
 #define FILE_COUNT_LIMIT 600000
 
@@ -68,7 +69,7 @@ static int strcmp_ci(const char *str1, const char *str2)
     return *str1 - *str2;
 }
 
-static void print_fscan_gfx_info(const fscan_gfx_info *ginf){
+static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile){
     if(!ginf){
         printf("NULLPTR\n");
         return;
@@ -93,7 +94,10 @@ static void print_fscan_gfx_info(const fscan_gfx_info *ginf){
         printf("}\n");
     }
 
-    printf("iteration: [%u, %u, %u, %u]\n", ginf->iteration[3], ginf->iteration[2], ginf->iteration[1], ginf->iteration[0]);
+    if(!is_tile)
+        printf("iteration: [%u, %u, %u, %u]\n", ginf->iteration[3], ginf->iteration[2], ginf->iteration[1], ginf->iteration[0]);
+    else
+        printf("tileGfxID: 0x%04X (block: %u, anim: %u)\n", aob_read_LE_U16(&ginf->iteration[1]), ginf->iteration[0], ginf->iteration[3]);
 }
 
 static void print_usage_info()
@@ -216,7 +220,7 @@ int main(int argc, char *argv[])
                     fscan_tiles_scan(&fscan_files_obj, &tiles);
                     if (verbose) {
                         for (size_t ii = 0; ii < tiles.size; ii++) {
-                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&tiles, ii));
+                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&tiles, ii), true);
                             printf("\n");
                         }
                     }
@@ -226,7 +230,7 @@ int main(int argc, char *argv[])
                     fscan_obj_gfx_scan(&fscan_files_obj, &objects);
                     if (verbose){
                         for (size_t ii = 0; ii < objects.size; ii++) {
-                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii));
+                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii), false);
                             printf("\n");
                         }
                     }

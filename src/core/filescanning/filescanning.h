@@ -8,7 +8,7 @@
 #include "../essentials/vector.h"
 #include "../essentials/paged_map.h"
 #include "../essentials/bitflag_array.h"
-#include "basicdefs.h"
+#include "../helpers/basicdefs.h"
 
 #define FILE_MIN_SIZE 64
 #define TILE_BMP_MAX_CHUNKS 16

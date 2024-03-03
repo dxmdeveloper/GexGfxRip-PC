@@ -193,7 +193,6 @@ int fscan_background_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res
 
     // Scan main chunk and intro before if not scanned yet to correctly set the ext_bmp_counter
     if (files_stp->last_scanned_chunk != 1 && files_stp->bitmap_chunk.fp) {
-        fscan_obj_gfx_scan(files_stp, NULL);
         fscan_intro_obj_gfx_scan(files_stp, NULL);
     }
 

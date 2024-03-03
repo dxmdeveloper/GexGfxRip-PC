@@ -119,7 +119,7 @@ struct gfx_palette *gfx_palette_parsef(FILE *ifstream, struct gfx_palette *dest)
     return dest;
 }
 
-size_t gfx_calc_size_of_bitmap_gfx(const void *gfx_headers)
+size_t gfx_calc_size_of_bitmap(const void *gfx_headers)
 {
     size_t size = 0;
     struct gex_gfxheader header = gex_gfxheader_parse_aob(gfx_headers);
@@ -255,7 +255,7 @@ u8 **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
         return NULL;
     }
     if (bitmap_dat == NULL) {
-        size_t bmpsize = gfx_calc_size_of_bitmap_gfx(headers_arr);
+        size_t bmpsize = gfx_calc_size_of_bitmap(headers_arr);
 
         if (!bmpsize) {
             free(headers_arr);
@@ -570,7 +570,7 @@ void gfx_graphic_close(gfx_graphic *g)
 void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps, size_t bmp_n)
 {
     u8 bpp = gex_gfxheader_type_get_bpp(aob_read_LE_U32((const u8 *) gfx + 16));
-    size_t total = gfx_calc_size_of_bitmap_gfx(gfx);
+    size_t total = gfx_calc_size_of_bitmap(gfx) + 20 + 8 * bmp_n + 8;
     if(total <= 28) return NULL;
 
     void *new_gfx = calloc(1, total);
@@ -589,17 +589,17 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
     gfx = (const u8 *) gfx + 20;
 
     // foreach graphic chunk
-    u32 bitmap_start = 24 + 8 * bmp_n;
+    u32 bitmap_start = 20 + 8 * bmp_n + 8;
     for (size_t i = 0; i < MIN(bmp_n, IMG_CHUNKS_LIMIT); i++) {
         u16 bmp_w = 0, bmp_h = 0;
         u16 cp_w = 0, cp_h = 0;
-        u16 byte_h = 0;
+        u16 raw_w = 0;
         struct gex_gfxchunk gchunk = gex_gfxchunk_parse_aob((const u8 *) gfx + 8 * i);
         if (gchunk.width == 0 || gchunk.height == 0) break;
         // read width and height from bitmap
-        bmp_w = aob_read_LE_U16((const u8 *)bmps[i]);
-        bmp_h = aob_read_LE_U16((const u8 *)bmps[i] + 4);
-        bmp_h = byte_h = (bpp == 16 ? bmp_h / 2 : bmp_h * 8 / bpp);
+        raw_w = aob_read_LE_U16((const u8 *)bmps[i]);
+        bmp_h = aob_read_LE_U16((const u8 *)bmps[i] + 2);
+        bmp_w = (bpp == 16 ? raw_w : raw_w * 16 / bpp);
         // validation
         if(bmp_w > IMG_MAX_WIDTH || bmp_h > IMG_MAX_HEIGHT) {
             free(new_gfx);
@@ -610,14 +610,14 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
         cp_h = MIN(gchunk.height, bmp_h);
 
         if(bmp_w == cp_w && bmp_h == cp_h) {
-            memcpy((u8 *)new_gfx + bitmap_start, (const u8 *)bmps[i] + 4, cp_w * byte_h);
+            memcpy((u8 *)new_gfx + bitmap_start, (const u8 *)bmps[i] + 4, cp_w * raw_w * 2);
         } else {
             for (u16 y = 0; y < cp_h; y++) {
                 size_t n = (bpp == 16 ? cp_w * 2 : cp_w / (8 / bpp));
                 memcpy((u8 *)new_gfx + bitmap_start + y * gchunk.width, (u8 *)bmps[i] + 4 + y * bmp_w, n);
             }
         }
-        bitmap_start += cp_w * byte_h;
+        bitmap_start += cp_w * raw_w;
         // change start offset in graphic chunk header
         u16 bs = aob_read_LE_U16(&bitmap_start); // byte swap on big endian platforms
         *((u16*)new_gfx + 4 * i) = bs;
