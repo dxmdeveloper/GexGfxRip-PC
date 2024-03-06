@@ -456,7 +456,7 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
         fseek(fchp->fp, -4, SEEK_SET);
 
         // read bitmap
-        if (fread(bitmaps[i], wh[0] * wh[1], 2, fchp->fp) != wh[0] * wh[1]) {
+        if (fread(bitmaps[i], wh[0] * wh[1] + 4, 2, fchp->fp) != wh[0] * wh[1] + 4) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
             for (int ii = 0; ii <= i; ii++) {
                 free(bitmaps[ii]);
