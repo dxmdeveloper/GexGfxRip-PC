@@ -31,7 +31,9 @@ typedef struct u32pair_struct {
 
 // detailed error log
 #ifdef DEBUG
-#define dbg_errlog(str, ...) (fprintf(stderr, str, __VA_ARGS__))
+#define dbg_errlog(str) fprintf(stderr, str)
+#defnie dbg_errlog_va(str, ...) fprintf(stderr, str, ##__VA_ARGS__)
 #else
-#define dbg_errlog(str, ...) {}
+#define dbg_errlog(str) fprintf(stderr, str)
+#define dbg_errlog_va(str, ...) fprintf(stderr, str, __VA_ARGS__)
 #endif

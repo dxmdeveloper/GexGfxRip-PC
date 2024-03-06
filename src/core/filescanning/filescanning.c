@@ -39,6 +39,9 @@ p_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize,
     return 0;
 }
 
+static inline void *
+p_read_ext_bmp_and_header_then_combine(fscan_file_chunk fchp[static 1], const fscan_gfx_info ginf[static 1]);
+
 int fscan_files_init(fscan_files *files_stp, const char filename[])
 {
     FILE *fp = NULL;
@@ -72,8 +75,7 @@ int fscan_files_init(fscan_files *files_stp, const char filename[])
         switch (p_files_init_open_and_set(filename, fp, fsize, &files_stp->tile_bmp_chunk)) {
             case -1:fclose(fp);
                 return FSCAN_LEVEL_TYPE_FOPEN_ERROR;
-            case 0:
-                break;
+            case 0:break;
             case 1:retval |= FSCAN_LEVEL_FLAG_NO_TILES;
                 break; // invalid / non-exsiting chunk
         }
@@ -134,7 +136,7 @@ void fscan_files_close(fscan_files *files_stp)
     p_close_fchunk(&files_stp->intro_chunk);
     p_close_fchunk(&files_stp->bg_chunk);
 
-    for(int i = 0; i < TILE_BMP_MAX_CHUNKS; i++)
+    for (int i = 0; i < TILE_BMP_MAX_CHUNKS; i++)
         gexdev_u32vec_close(&files_stp->tile_ext_bmp_offsets[i]);
     gexdev_u32vec_close(&files_stp->ext_bmp_offsets);
 }
@@ -336,7 +338,7 @@ int fscan_search_for_tile_bmps(fscan_files *files_stp)
 
     for (int i = 0; i < sizeofarr(block_offsets) && block_offsets[i]; i++) {
         fseek(files_stp->tile_bmp_chunk.fp, block_offsets[i], SEEK_SET);
-        if(vecs[i].v) gexdev_u32vec_close(&vecs[i]);
+        if (vecs[i].v) gexdev_u32vec_close(&vecs[i]);
         gexdev_u32vec_init_capcity(&vecs[i], 64);
         p_read_arr_of_bmp_ptrs_and_push_valid_bmp_offs_to_vec(&files_stp->tile_bmp_chunk,
                                                               &vecs[i],
@@ -375,8 +377,17 @@ fscan_gfx_info *fscan_gfx_info_vec_at(const fscan_gfx_info_vec *vecp, size_t ind
 }
 
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output,
-                                      int pos_x, int pos_y, int flags)
+                                     int pos_x, int pos_y, int flags)
 {
+    void *raw_graphic = NULL;
+
+    if (ginf->ext_bmp_offsets) {
+        raw_graphic = p_read_ext_bmp_and_header_then_combine(&files_stp->bitmap_chunk, ginf);
+        if (!raw_graphic) return -1;
+    }
+    // TODO: FINISH THIS FUNCTION
+
+    if(raw_graphic) free(raw_graphic);
     return 0;
 }
 
@@ -403,4 +414,79 @@ void p_close_fchunk(fscan_file_chunk *fchp)
         fclose(fchp->data_fp);
         fchp->data_fp = NULL;
     }
+}
+
+static inline
+void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan_gfx_info *ginf)
+{
+    void *raw_graphic = NULL;
+    void *gheader = NULL;
+    void *bitmaps[IMG_CHUNKS_LIMIT] = {0};
+
+    // read all bitmaps
+    for (int i = 0; i < ginf->chunk_count; i++) {
+        u32 bmp_offset = ginf->ext_bmp_offsets[i];
+        u16 wh[2] = {0};
+        if (!bmp_offset) {
+            fprintf(stderr, "error: fscan_draw_gfx_using_gfx_info_ex: invalid bmp offset (Should not happen)\n");
+            return NULL;
+        }
+        // read size of bitmap
+        fseek(fchp->fp, bmp_offset, SEEK_SET);
+        fread_LE_U16(wh, 2, fchp->fp);
+
+        if (*(u32 *) wh == 0) {
+            dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
+            return NULL;
+        }
+
+        if (wh[0] / 4 > IMG_MAX_WIDTH || wh[1] > IMG_MAX_HEIGHT) {
+            dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: bitmap size out of limits\n");
+            return NULL;
+        }
+
+        // malloc bitmap in bitmaps array
+        bitmaps[i] = malloc(wh[0] * wh[1] * 2);
+        if (!bitmaps[i]) {
+            fprintf(stderr, "error: fscan_draw_gfx_using_gfx_info_ex: malloc error\n");
+            exit(0xbeef);
+        }
+
+        // rewind to the start of the bitmap with the size
+        fseek(fchp->fp, -4, SEEK_SET);
+
+        // read bitmap
+        if (fread(bitmaps[i], wh[0] * wh[1], 2, fchp->fp) != wh[0] * wh[1]) {
+            dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
+            for (int ii = 0; ii <= i; ii++) {
+                free(bitmaps[ii]);
+            }
+            return NULL;
+        }
+    }
+    // allocate memory for graphic header
+    gheader = malloc(28 + 8 * ginf->chunk_count);
+    if (!gheader) {
+        fprintf(stderr, "error: fscan_draw_gfx_using_gfx_info_ex: malloc error\n");
+        exit(0xbeef);
+    }
+    // read graphic header
+    fseek(fchp->fp, ginf->gfx_offset, SEEK_SET);
+    if (fread(gheader, 28 + 8 * ginf->chunk_count, 1, fchp->fp) != 28 + 8 * ginf->chunk_count) {
+        dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
+        free(gheader);
+        for (int i = 0; i < IMG_CHUNKS_LIMIT && bitmaps[i]; i++)
+            free(bitmaps[i]);
+        return NULL;
+    }
+    // combine header and bitmaps
+    raw_graphic = gfx_combine_graphic_and_bitmaps_w_alloc(gheader, (const void **) bitmaps, ginf->chunk_count);
+
+    // cleanup
+    free(gheader);
+    for (int i = 0; i < IMG_CHUNKS_LIMIT && bitmaps[i]; i++) {
+        free(bitmaps[i]);
+    }
+
+    return raw_graphic;
 }
