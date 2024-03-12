@@ -193,11 +193,10 @@ uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_da
     return NULL;
 }
 
-size_t gfx_read_headers_alloc_aob(FILE *gfx_headers_fp, void **dest)
+size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size)
 {
     struct gex_gfxheader header = {0};
     struct gex_gfxchunk chunk = {0};
-    u8 *header_buf = NULL;
     size_t header_size = 28;
     u32 opmap_size = 0;
     long fpos_checkpoint = ftell(gfx_headers_fp);
@@ -233,14 +232,12 @@ size_t gfx_read_headers_alloc_aob(FILE *gfx_headers_fp, void **dest)
 
     // file position restore and read all into the headersBuffor
     fseek(gfx_headers_fp, fpos_checkpoint, SEEK_SET);
-    header_buf = malloc(header_size);
-    if (!fread(header_buf, 1, header_size, gfx_headers_fp)) {
-        free(header_buf);
+    if (!fread(dest, 1, header_size, gfx_headers_fp)) {
+        memset(dest, 0, header_size);
         return 0;
     }
 
     // successful end of function
-    *dest = header_buf;
     return header_size;
 }
 
@@ -251,7 +248,7 @@ u8 **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
     u8 **retval = NULL;
     u8 *new_bmp_size = NULL;
 
-    if (!(headers_size = gfx_read_headers_alloc_aob(gfx_header_fp, &headers_arr))) {
+    if (!(headers_size = gfx_fread_headers(gfx_header_fp, &headers_arr, 0))) {
         return NULL;
     }
     if (bitmap_dat == NULL) {
@@ -396,10 +393,8 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
         return NULL;
     }
 
-    if (width < min_width)
-        width = min_width;
-    if (height < min_height)
-        height = min_height;
+    width = MAX(width, min_width);
+    height = MAX(height, min_height);
 
     // malloc image with valid size
     image = (u8 **) calloc2D(height, width, sizeof(u8));
@@ -481,47 +476,6 @@ uint8_t gex_gfxheader_type_get_bpp(uint32_t typeSignature)
     return 0;
 }
 
-// -----------------------------------------------------
-// STATIC FUNCTION DEFINITIONS:
-// -----------------------------------------------------
-
-// draw pixel relative of chunk position
-static void p_chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp)
-{
-    u16 y = chunk->rel_position_y + (cpix_i / chunk->width);
-    u16 x = chunk->rel_position_x + (cpix_i % chunk->width);
-
-    if (bpp == 8)
-        img[y][x] = pix_val;
-    else {
-        u8 shift = bpp * (cpix_i % (8 / bpp));
-        u8 mask = 0xFF >> (8 - bpp);
-        img[y][x] = (pix_val >> shift) & mask;
-    }
-}
-
-void **malloc2D(u32 y, u32 x, u8 element_size)
-{
-    void **arr = (void **) malloc(sizeof(uintptr_t) * y + element_size * x * y);
-    uintptr_t addr = (uintptr_t) &arr[y];
-
-    for (u32 i = 0; i < y; i++)
-        arr[i] = (void *) (addr + i * element_size * x);
-
-    return arr;
-}
-
-void **calloc2D(u32 y, u32 x, u8 element_size)
-{
-    void **arr = (void **) calloc(sizeof(uintptr_t) * y + element_size * x * y, 1);
-    uintptr_t addr = (uintptr_t) &arr[y];
-
-    for (u32 i = 0; i < y; i++)
-        arr[i] = (void *) (addr + i * element_size * x);
-
-    return arr;
-}
-
 bool gfx_calc_real_width_and_height(u32 *ref_width, u32 *ref_height, const void *first_chunk)
 {
     struct gex_gfxchunk chunk = {0};
@@ -571,19 +525,17 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
 {
     u8 bpp = gex_gfxheader_type_get_bpp(aob_read_LE_U32((const u8 *) gfx + 16));
     size_t total = gfx_calc_size_of_bitmap(gfx) + 20 + 8 * bmp_n + 8;
-    if(total <= 28) return NULL;
+    if (total <= 28) return NULL;
 
     void *new_gfx = calloc(1, total);
     if (!new_gfx) return NULL;
 
     // header copy
-    memcpy(new_gfx, gfx, 20+8*bmp_n+8);
+    memcpy(new_gfx, gfx, 20 + 8 * bmp_n + 8);
 
     // signature change
-    u8 type = *((u8*)new_gfx+16);
-    type &= 0x0F;
-    type |= 0x80;
-    *((u8*)new_gfx+16) = type;
+    u8 type = *((u8 *) new_gfx + 16);
+    *((u8 *) new_gfx + 16) = (type & 0x0F) | 0x80;
 
     // move pointer to the end of graphic header
     gfx = (const u8 *) gfx + 20;
@@ -597,11 +549,11 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
         struct gex_gfxchunk gchunk = gex_gfxchunk_parse_aob((const u8 *) gfx + 8 * i);
         if (gchunk.width == 0 || gchunk.height == 0) break;
         // read width and height from bitmap
-        raw_w = aob_read_LE_U16((const u8 *)bmps[i]);
-        bmp_h = aob_read_LE_U16((const u8 *)bmps[i] + 2);
+        raw_w = aob_read_LE_U16((const u8 *) bmps[i]);
+        bmp_h = aob_read_LE_U16((const u8 *) bmps[i] + 2);
         bmp_w = (bpp == 16 ? raw_w : raw_w * 16 / bpp);
         // validation
-        if(bmp_w > IMG_MAX_WIDTH || bmp_h > IMG_MAX_HEIGHT) {
+        if (bmp_w > IMG_MAX_WIDTH || bmp_h > IMG_MAX_HEIGHT) {
             free(new_gfx);
             return NULL;
         }
@@ -609,19 +561,128 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
         cp_w = MIN(gchunk.width, bmp_w);
         cp_h = MIN(gchunk.height, bmp_h);
 
-        if(bmp_w == cp_w && bmp_h == cp_h) {
-            memcpy((u8 *)new_gfx + bitmap_start, (const u8 *)bmps[i] + 4, cp_w * raw_w * 2);
+        // check if crop is supported. This may be changed in the future
+        if (bpp == 4 && (bmp_w - cp_w) % 2 != 0) {
+            dbg_errlog("error: gfx_combine_graphic_and_bitmaps_w_alloc: unsupported crop on 4bpp bitmap.\n"
+                       "difference between bitmap width and graphic chunk width must be even number\n");
+            free(new_gfx);
+            return NULL;
+        }
+
+        // copy bitmap to new graphic
+        if (bmp_w == cp_w && bmp_h == cp_h) {
+            memcpy((u8 *) new_gfx + bitmap_start, (const u8 *) bmps[i] + 4, cp_w * raw_w * 2);
         } else {
             for (u16 y = 0; y < cp_h; y++) {
                 size_t n = (bpp == 16 ? cp_w * 2 : cp_w / (8 / bpp));
-                memcpy((u8 *)new_gfx + bitmap_start + y * gchunk.width, (u8 *)bmps[i] + 4 + y * bmp_w, n);
+                memcpy((u8 *) new_gfx + bitmap_start + y * gchunk.width, (u8 *) bmps[i] + 4 + y * bmp_w, n);
             }
         }
         bitmap_start += cp_w * raw_w;
+
         // change start offset in graphic chunk header
         u16 bs = aob_read_LE_U16(&bitmap_start); // byte swap on big endian platforms
-        *((u16*)new_gfx + 4 * i) = bs;
+        *((u16 *) new_gfx + 4 * i) = bs;
     }
 
     return new_gfx;
 }
+
+size_t gfx_calc_total_size_of_graphic(const void *graphic, size_t buff_size)
+{
+    size_t size = 28;
+
+    size = gfx_calc_size_of_headers(graphic, buff_size);
+    if (size == 0 || size >= buff_size) return 0;
+
+    if (*((const u8 *) graphic + 16) & 4) {
+        size += gfx_calc_size_of_sprite(graphic);
+    } else {
+        size += gfx_calc_size_of_bitmap(graphic);
+    }
+    return size;
+}
+
+size_t gfx_calc_size_of_headers(const void *headers, size_t buff_size)
+{
+    size_t size = 28;
+    const u8 *gptr = headers + 20;
+
+    if (buff_size < 28) return buff_size;
+
+    // gfxHeader parse
+    struct gex_gfxheader gheader = gex_gfxheader_parse_aob(headers);
+
+    // quick validation
+    if (gheader._struct_pad || gheader.type_signature == 0
+        || gheader.inf_img_width > IMG_MAX_WIDTH || gheader.inf_img_height > IMG_MAX_HEIGHT)
+        return 0;
+
+    // gfxChunks count
+    struct gex_gfxchunk gchunk = gex_gfxchunk_parse_aob(gptr);
+
+    for (uint i = 0; gchunk.height && gchunk.width && i < IMG_CHUNKS_LIMIT; i++) {
+        size += 8;
+        gptr += 8;
+        if (size + 8 > buff_size) return buff_size;
+        gchunk = gex_gfxchunk_parse_aob(gptr);
+    }
+    gptr += 8;
+
+    if (size > 28 + IMG_CHUNKS_LIMIT * 8)
+        return 0;
+
+    // map of operations size of sprite
+    if (gheader.type_signature & 4) {
+        if (size + 4 > buff_size) return buff_size;
+        size += aob_read_LE_U32(gptr);
+
+        if (aob_read_LE_U32(gptr) > 0xFFFF /*?*/)
+            return 0;
+    }
+
+    return size;
+}
+
+
+// -----------------------------------------------------
+// STATIC FUNCTION DEFINITIONS:
+// -----------------------------------------------------
+
+// draw pixel relative of chunk position
+static void p_chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp)
+{
+    u16 y = chunk->rel_position_y + (cpix_i / chunk->width);
+    u16 x = chunk->rel_position_x + (cpix_i % chunk->width);
+
+    if (bpp == 8)
+        img[y][x] = pix_val;
+    else {
+        u8 shift = bpp * (cpix_i % (8 / bpp));
+        u8 mask = 0xFF >> (8 - bpp);
+        img[y][x] = (pix_val >> shift) & mask;
+    }
+}
+
+static void **malloc2D(u32 y, u32 x, u8 element_size)
+{
+    void **arr = (void **) malloc(sizeof(uintptr_t) * y + element_size * x * y);
+    uintptr_t addr = (uintptr_t) &arr[y];
+
+    for (u32 i = 0; i < y; i++)
+        arr[i] = (void *) (addr + i * element_size * x);
+
+    return arr;
+}
+
+static void **calloc2D(u32 y, u32 x, u8 element_size)
+{
+    void **arr = (void **) calloc(sizeof(uintptr_t) * y + element_size * x * y, 1);
+    uintptr_t addr = (uintptr_t) &arr[y];
+
+    for (u32 i = 0; i < y; i++)
+        arr[i] = (void *) (addr + i * element_size * x);
+
+    return arr;
+}
+

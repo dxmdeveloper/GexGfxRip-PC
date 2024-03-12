@@ -105,24 +105,32 @@ struct gfx_palette gfx_create_palette(void *gex_palette);
 /** @brief converts rgb555 with swapped red and blue channels to rgb 8bpp */
 png_color bgr555_to_rgb888(u16 bgr555);
 
+/** @brief calculates total size in bytes of graphic from its headers
+ *  @param graphic pointer to gfxheader, null terminated array of gfxchunks and, in case of sprite format, operations map.
+ *  Use gfx_fread_headers if you work with FILE*
+ *  @return size of graphic in bytes or 0 if size is invalid. */
+size_t gfx_calc_total_size_of_graphic(const void *graphic, size_t buff_size);
+
 // TODO: FUNCTIONS BELOW DOES NOT CHECK MAX SIZE OF IMG
-/** @brief calcuates real size of bitmap (not sprite) from gfx headers
+/** @brief calculates real size of bitmap (not sprite) from gfx headers
  *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
  *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
 size_t gfx_calc_size_of_bitmap(const void *gfx_headers);
 
-/** @brief calcuates real size of sprite from gfx headers
+/** @brief calculates real size of sprite from gfx headers
  *  @param gfxHeader array with minimum size of 20 + IMG_CHUNKS_LIMIT or precise precalculated size of headers.
  *  @return size of bitmap data of graphic from its header or 0 if size is invalid. */
 size_t gfx_calc_size_of_sprite(const void *gheaders_and_opmap);
 
+size_t gfx_calc_size_of_headers(const void *headers, size_t buff_size);
+
 /** @brief reads graphic headers from FILE into the dest array. Changes position of file pointer
  *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function!
  *  @return size of dest array in bytes. 0 if headers are invalid. */
-size_t gfx_read_headers_alloc_aob(FILE *gfx_headers_fp, void **dest);
+size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size);
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw...
- *  @param gfx_headers pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_read_headers_alloc_aob if you work with FILE*
+ *  @param gfx_headers pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_fread_headers if you work with FILE*
  *  @param bitmap_dat pointer to actual image data. IMPORTANT: Use gfx_calc_size_of_bitmap to ensure how many bytes are needed to be read and allocated.
  *  @return image matrix or null pointer if failed */
 uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[]);

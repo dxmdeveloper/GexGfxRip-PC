@@ -184,7 +184,7 @@ fscan_read_header_and_bitmaps_alloc(fscan_file_chunk *fchp, fscan_file_chunk *ex
 
     fseek(fchp->data_fp, header_offset, SEEK_SET);
 
-    header_size = gfx_read_headers_alloc_aob(fchp->data_fp, header_and_bitmapp);
+    header_size = gfx_fread_headers(fchp->data_fp, header_and_bitmapp, 0);
     if (!header_size)
         return 0;
 
@@ -380,14 +380,82 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
                                      int pos_x, int pos_y, int flags)
 {
     void *raw_graphic = NULL;
+    uint IDAT_off = 0;
+    // TODO: Cache palettes
+    struct gfx_palette palette = {0};
+    fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY!!!
+
+    // Argument check
+    if (ginf->gfx_offset == 0)
+        return -1;
 
     if (ginf->ext_bmp_offsets) {
-        raw_graphic = p_read_ext_bmp_and_header_then_combine(&files_stp->bitmap_chunk, ginf);
-        if (!raw_graphic) return -1;
-    }
-    // TODO: FINISH THIS FUNCTION
+        raw_graphic = p_read_ext_bmp_and_header_then_combine(fchp, ginf);
+        if (!raw_graphic) return -2;
+        IDAT_off = gfx_calc_size_of_headers(raw_graphic, ~0 /* change to be more memory safety? */);
+    } else {
+        // Graphic header parse
+        struct gex_gfxheader gheader = {0};
+        fseek(files_stp->bitmap_chunk.fp, ginf->gfx_offset, SEEK_SET);
+        gex_gfxheader_parsef(fchp->fp, &gheader);
+        fseek(fchp->fp, -20, SEEK_CUR);
 
-    if(raw_graphic) free(raw_graphic);
+        if ((gheader.type_signature & 0xF0) == 0xC0) {
+            dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file chunk with bitmaps is missing"
+                       " or fscan_gfx_info object is corrupted.\n");
+            return -3;
+        } else {
+            // First we need to find out the size of the graphic
+            void *headers = NULL;
+            long preserved_pos = ftell(fchp->fp);
+            size_t IDAT_size = gfx_fread_headers(fchp->fp, &headers, 0);
+            size_t size = IDAT_off = gfx_fread_headers(fchp->fp, &headers, 0);
+            if (!size) return -4;
+
+            if (gheader.type_signature & 4) {
+                IDAT_size = gfx_calc_size_of_sprite(headers);
+            } else {
+                IDAT_size = gfx_calc_size_of_bitmap(headers);
+            }
+            if (!IDAT_size) return -5;
+            size += IDAT_size;
+
+            // Allocate memory for the graphic
+            raw_graphic = malloc(size);
+            if (!raw_graphic) {
+                fprintf(stderr, "error: fscan_draw_gfx_using_gfx_info_ex: malloc error\n");
+                exit(0xbeef);
+            }
+
+            // Read the graphic
+            fseek(fchp->fp, preserved_pos, SEEK_SET);
+            if (fread(raw_graphic, size, 1, fchp->fp) != 1) {
+                dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: graphic read error\n");
+                free(raw_graphic);
+                return -6;
+            }
+        }
+    }
+
+    // TODO: Cache palettes
+    // Read and parse color palette
+    if (ginf->palette_offset) {
+        fseek(fchp->fp, ginf->palette_offset, SEEK_SET);
+        if (!gfx_palette_parsef(fchp->fp, &palette)) {
+            dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: palette read error\n");
+            free(raw_graphic);
+            return -7;
+        }
+    }
+
+    // Draw the graphic
+    void *img = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+
+    // TODO: Operations on the img
+    // TODO: Merge img with gfx_graphic (output)
+
+    free(img); // ?????????????????????????????????????????????????
+    if (raw_graphic) free(raw_graphic);
     return 0;
 }
 
