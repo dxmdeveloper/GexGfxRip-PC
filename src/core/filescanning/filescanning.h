@@ -165,4 +165,9 @@ int fscan_search_for_tile_bmps(fscan_files *files_stp);
 
 int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output);
 
-int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output, int pos_x, int pos_y, int flags);
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
+                                     const fscan_gfx_info *ginf,
+                                     gfx_graphic *output,
+                                     int pos_x,
+                                     int pos_y,
+                                     int flags);

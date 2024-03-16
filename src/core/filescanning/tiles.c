@@ -41,7 +41,7 @@ int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
     int err;
     if ((err = setjmp(errbuf))) {
         gexdev_bitflag_arr_close(&used_gfx_map);
-        dbg_errlog("fscan_background_scan error\n");
+        dbg_errlog("fscan_tiles_scan error\n");
         return err;
     }
     // -----------------------------------------------------------

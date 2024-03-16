@@ -21,7 +21,7 @@ struct gfx_palette gfx_create_palette(void *gex_palette)
     newPalette.tRNS_count = 0;
 
     //exception: null pointer
-    if (gex_palette == NULL) {
+    if (!gex_palette) {
         newPalette.colors_cnt = 0;
         return newPalette;
     }
@@ -116,6 +116,9 @@ struct gfx_palette *gfx_palette_parsef(FILE *ifstream, struct gfx_palette *dest)
 
     *dest = gfx_create_palette(pal_dat);
     free(pal_dat);
+
+    if(dest->colors_cnt == 0)
+        return NULL;
     return dest;
 }
 
@@ -167,14 +170,15 @@ size_t gfx_calc_size_of_sprite(const void *gheaders_and_opmap)
     return bytes;
 }
 
-uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[])
+gfx_graphic gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[])
 {
     struct gex_gfxheader header = {0};
     u32 real_height = 0, real_width = 0;
     u8 bpp = 0; // TODO: USE IT
+    struct gfx_graphic empty_ret = {0};
 
     if (gfx_headers == NULL || bitmap_dat == NULL)
-        return NULL;
+        return empty_ret;
 
     header = gex_gfxheader_parse_aob((u8 *) gfx_headers);
     gfx_headers += 20;
@@ -186,11 +190,11 @@ uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_da
     switch (header.type_signature & 7) {
         case 5: return gfx_draw_sprite(gfx_headers, bitmap_dat, 8, real_height, real_width);
         case 4: return gfx_draw_sprite(gfx_headers, bitmap_dat, 4, real_height, real_width);
-        case 2: return (u8 **) gfx_draw_gex_bitmap_16bpp(gfx_headers, bitmap_dat, real_height, real_width);
+        case 2: return gfx_draw_gex_bitmap_16bpp(gfx_headers, bitmap_dat, real_height, real_width);
         case 1: return gfx_draw_gex_bitmap(gfx_headers, bitmap_dat, 8, real_height, real_width);
         case 0: return gfx_draw_gex_bitmap(gfx_headers, bitmap_dat, 4, real_height, real_width);
     }
-    return NULL;
+    return empty_ret;
 }
 
 size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size)
@@ -230,7 +234,7 @@ size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size)
     if (opmap_size > 0xFFFF /*?*/)
         return 0;
 
-    // file position restore and read all into the headersBuffor
+    // file position restore and read all into the headersBuffer
     fseek(gfx_headers_fp, fpos_checkpoint, SEEK_SET);
     if (!fread(dest, 1, header_size, gfx_headers_fp)) {
         memset(dest, 0, header_size);
@@ -241,22 +245,23 @@ size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size)
     return header_size;
 }
 
-u8 **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
+/* Obsolete? */
+gfx_graphic gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
 {
     void *headers_arr = NULL;
     size_t headers_size = 0;
-    u8 **retval = NULL;
     u8 *new_bmp_size = NULL;
+    struct gfx_graphic output = {0};
 
     if (!(headers_size = gfx_fread_headers(gfx_header_fp, &headers_arr, 0))) {
-        return NULL;
+        return output;
     }
     if (bitmap_dat == NULL) {
         size_t bmpsize = gfx_calc_size_of_bitmap(headers_arr);
 
         if (!bmpsize) {
             free(headers_arr);
-            return NULL;
+            return output;
         }
 
         new_bmp_size = malloc(bmpsize);
@@ -267,33 +272,34 @@ u8 **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
         if (fread(new_bmp_size, 1, 1, gfx_header_fp) != bmpsize) {
             free(headers_arr);
             free(new_bmp_size);
-            return NULL;
+            return output;
         }
     }
-    retval = gfx_draw_img_from_raw(gfx_header_fp, (bitmap_dat ? bitmap_dat : new_bmp_size));
+    output = gfx_draw_img_from_raw(gfx_header_fp, (bitmap_dat ? bitmap_dat : new_bmp_size));
 
     free(headers_arr);
     if (bitmap_dat == NULL)
         free(new_bmp_size);
 
-    return retval;
+    return output;
 }
 
-u8 **gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8_t bpp, u32 min_width, u32 min_height)
+gfx_graphic gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8_t bpp, u32 min_width, u32 min_height)
 {
     u8 **image = NULL;
     u32 width = 0;
     u32 height = 0;
     u16 chunk_i = 0;
     struct gex_gfxchunk chunk = {0};
+    struct gfx_graphic output = {0};
 
     if (min_width > IMG_MAX_WIDTH || min_height > IMG_MAX_HEIGHT) {
         fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawGexBitmap)\n");
-        return NULL;
+        return output;
     }
 
     if (gfx_calc_real_width_and_height(&width, &height, chunk_headers)) {
-        return NULL;
+        return output;
     }
 
     if (width < min_width)
@@ -305,7 +311,7 @@ u8 **gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8
     image = (u8 **) calloc2D(height, width, sizeof(u8));
     if (image == NULL) {
         fprintf(stderr, "Out Of Memory!\n");
-        return NULL;
+        return output;
     }
 
     chunk = gex_gfxchunk_parse_aob(chunk_headers);
@@ -318,7 +324,7 @@ u8 **gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8
         if (chunk.start_offset - bitmap_offset > (width * height) / (8 / bpp)) {
             //Invalid graphic / misrecognized data
             free(image);
-            return NULL;
+            return output;
         }
 
         // Proccess Data
@@ -333,32 +339,38 @@ u8 **gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8
         chunk = gex_gfxchunk_parse_aob(chunk_headers + (++chunk_i * 8));
     }
 
-    return image;
+    // assign output and return
+    output.bitmap = image;
+    output.width = width;
+    output.height = height;
+
+    return output;
 }
 
-void **gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
-                                 const void *bitmap_dat,
-                                 uint32_t min_width,
-                                 uint32_t min_height)
+gfx_graphic gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
+                                      const void *bitmap_dat,
+                                      uint32_t min_width,
+                                      uint32_t min_height)
 {
     void **image = NULL;
     u32 width = 0, height = 0;
     struct gex_gfxchunk chunk = {0};
+    struct gfx_graphic output = {0};
 
     if (!chunk_headers || !bitmap_dat)
-        return NULL;
+        return output;
     if (min_width > IMG_MAX_WIDTH || min_height > IMG_MAX_HEIGHT) {
         fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawSprite)\n");
-        return NULL;
+        return output;
     }
 
     if (gfx_calc_real_width_and_height(&width, &height, chunk_headers)) {
-        return NULL;
+        return output;
     }
 
     image = calloc2D(MAX(height, min_height), MAX(width, min_width), 4);
     if (!image)
-        return NULL;
+        return output;
 
     for (u32 y = 0; y < height; y++) {
         for (u32 x = 0; x < width; x++) {
@@ -370,11 +382,20 @@ void **gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
             ((u8 **) image)[y][x * 4 + 3] = rgb555val ? 0xFF : 0;
         }
     }
-    return image;
+    // assign output and return
+    output.bitmap = (u8**)image;
+    output.width = width;
+    output.height = height;
+
+    return output;
 }
 
 // TODO CONSIDER GFX HEADER ARG INSTEAD OF chunksAndOpMap AND bpp
-u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, u8 bpp, u32 min_width, u32 min_height)
+gfx_graphic gfx_draw_sprite(const void *chunk_headers_and_opmap,
+                            const u8 *bitmap_dat,
+                            u8 bpp,
+                            u32 min_width,
+                            u32 min_height)
 {
     u8 **image = NULL;
     u32 width = 0, height = 0;
@@ -383,14 +404,15 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
     uint pix_ind = 0, pix_in_ch_ind = 0;
     uint chunk_ind = 0;
     struct gex_gfxchunk chunk = {0};
+    struct gfx_graphic output = {0};
 
     if (min_width > IMG_MAX_WIDTH || min_height > IMG_MAX_HEIGHT) {
         fprintf(stderr, "Err: minWidth/minHeight argument exceeds IMG_MAX_ limit (gfx.c::gfx_drawGexBitmap)\n");
-        return NULL;
+        return output;
     }
 
     if (gfx_calc_real_width_and_height(&width, &height, chunk_headers_and_opmap)) {
-        return NULL;
+        return output;
     }
 
     width = MAX(width, min_width);
@@ -400,7 +422,7 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
     image = (u8 **) calloc2D(height, width, sizeof(u8));
     if (image == NULL) {
         fprintf(stderr, "Out Of Memory!\n");
-        return NULL;
+        return output;
     }
 
     // opmap size and pointer
@@ -436,7 +458,7 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
             if (pix_in_ch_ind >= chunk.height * chunk.width) {
                 chunk = gex_gfxchunk_parse_aob(chunk_headers_and_opmap + (++chunk_ind) * 8);
                 if (chunk.height * chunk.width == 0)
-                    return image;
+                    return output;
                 pix_in_ch_ind = 0;
             }
             switch (optype) {
@@ -451,7 +473,13 @@ u8 **gfx_draw_sprite(const void *chunk_headers_and_opmap, const u8 *bitmap_dat, 
         if (optype == 1)
             pix_ind += 32 / bpp;
     }
-    return image;
+
+    // assign output and return
+    output.bitmap = image;
+    output.width = width;
+    output.height = height;
+
+    return output;
 }
 
 png_color bgr555_to_rgb888(u16 bgr555)
@@ -578,11 +606,12 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
                 memcpy((u8 *) new_gfx + bitmap_start + y * gchunk.width, (u8 *) bmps[i] + 4 + y * bmp_w, n);
             }
         }
-        bitmap_start += cp_w * raw_w;
 
         // change start offset in graphic chunk header
         u16 bs = aob_read_LE_U16(&bitmap_start); // byte swap on big endian platforms
-        *((u16 *) new_gfx + 4 * i) = bs;
+        *((u16 *)((u8*)new_gfx + 20 + 8 * i)) = bs;
+
+        bitmap_start += cp_w * raw_w;
     }
 
     return new_gfx;

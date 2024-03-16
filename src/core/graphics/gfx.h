@@ -133,13 +133,13 @@ size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size);
  *  @param gfx_headers pointer to gfxHeader, null terminated array of gfxChunks and, in case of sprite format, operations map. Use gfx_fread_headers if you work with FILE*
  *  @param bitmap_dat pointer to actual image data. IMPORTANT: Use gfx_calc_size_of_bitmap to ensure how many bytes are needed to be read and allocated.
  *  @return image matrix or null pointer if failed */
-uint8_t **gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[]);
+gfx_graphic gfx_draw_img_from_raw(const void *gfx_headers, const uint8_t bitmap_dat[]);
 
 /** @brief detects graphic's type and creates bitmap. calls gfx_draw... gfx_drawImgFromRaw variation, compatible with C/C++, eliminates problem with gfxHeaders size.
  *  @param gfx_header_fp pointer to FILE with position cursor set on graphic header
  *  @param bitmap_dat pointer to actual bitmap. if nullpointer given bitmapDat will be read from the FILE.
  *  @return image matrix or null pointer if failed */
-uint8_t **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat);
+gfx_graphic gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat);
 
 /** @brief creates bitmap from PC/PSX 2/4/8 bpp bitmap (LE){ ?, (X0 XX FF FF), (X1 XX FF FF)};
  *  @param chunk_headers pointer to null terminated gex_gfxChunk structs.
@@ -147,21 +147,21 @@ uint8_t **gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_dat)
  *  @param bpp - bits per pixel 2/4/8
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-uint8_t **gfx_draw_gex_bitmap(const void *chunk_headers,
-                              const uint8_t bitmap_dat[],
-                              uint8_t bpp,
-                              uint32_t min_width,
-                              uint32_t min_height);
+gfx_graphic gfx_draw_gex_bitmap(const void *chunk_headers,
+                                const uint8_t bitmap_dat[],
+                                uint8_t bpp,
+                                uint32_t min_width,
+                                uint32_t min_height);
 
 /** @brief creates RGBA bitmap from PC/PSX 16 bpp bitmap (LE X2 XX FF FF);
  *  @param chunk_headers pointer to null terminated gex_gfxChunk structs.
  *  @param bitmap_dat pointer to actual bitmap.
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-void **gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
-                                 const void *bitmap_dat,
-                                 uint32_t min_width,
-                                 uint32_t min_height);
+gfx_graphic gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
+                                      const void *bitmap_dat,
+                                      uint32_t min_width,
+                                      uint32_t min_height);
 
 /** @brief creates bitmap from PC/PSX 2/4/8 bpp sprite (LE){ ?, (X4 XX FF FF), (X5 XX FF FF)};
  *  @param chunk_headers_and_opmap pointer to null terminated gex_gfxChunk structs and operations map.
@@ -169,11 +169,11 @@ void **gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
  *  @param bpp - bits per pixel 2/4/8
  *  @return pointer to color indexed bitmap.
  *  @return NULL Pointer if failed! */
-uint8_t **gfx_draw_sprite(const void *chunk_headers_and_opmap,
-                          const uint8_t bitmap_dat[],
-                          uint8_t bpp,
-                          uint32_t min_width,
-                          uint32_t min_height);
+gfx_graphic gfx_draw_sprite(const void *chunk_headers_and_opmap,
+                            const uint8_t bitmap_dat[],
+                            uint8_t bpp,
+                            uint32_t min_width,
+                            uint32_t min_height);
 
 /** @brief calcs real sizes of graphic.
     @return true if sizes are invalid. false if everything is ok.*/

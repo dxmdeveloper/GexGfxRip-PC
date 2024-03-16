@@ -69,8 +69,9 @@ static int strcmp_ci(const char *str1, const char *str2)
     return *str1 - *str2;
 }
 
-static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile){
-    if(!ginf){
+static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile)
+{
+    if (!ginf) {
         printf("NULLPTR\n");
         return;
     }
@@ -86,7 +87,7 @@ static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile){
     printf("\t .is_flipped_horizontally %u\n", ginf->gfx_props.is_flipped_horizontally);
     printf("\t .is_flipped_vertically %u\n", ginf->gfx_props.is_flipped_vertically);
     // ext_bmp_offsets
-    if(ginf->ext_bmp_offsets && ginf->chunk_count > 0) {
+    if (ginf->ext_bmp_offsets && ginf->chunk_count > 0) {
         printf("ext_bmp_offsets: { ");
         for (size_t i = 0; i < ginf->chunk_count; i++) {
             printf("0x%08X ", ginf->ext_bmp_offsets[i]);
@@ -94,10 +95,17 @@ static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile){
         printf("}\n");
     }
 
-    if(!is_tile)
-        printf("iteration: [%u, %u, %u, %u]\n", ginf->iteration[3], ginf->iteration[2], ginf->iteration[1], ginf->iteration[0]);
+    if (!is_tile)
+        printf("iteration: [%u, %u, %u, %u]\n",
+               ginf->iteration[3],
+               ginf->iteration[2],
+               ginf->iteration[1],
+               ginf->iteration[0]);
     else
-        printf("tileGfxID: 0x%04X (block: %u, anim: %u)\n", aob_read_LE_U16(&ginf->iteration[1]), ginf->iteration[0], ginf->iteration[3]);
+        printf("tileGfxID: 0x%04X (block: %u, anim: %u)\n",
+               aob_read_LE_U16(&ginf->iteration[1]),
+               ginf->iteration[0],
+               ginf->iteration[3]);
 }
 
 static void print_usage_info()
@@ -130,8 +138,7 @@ int main(int argc, char *argv[])
     switch (xpgetopt_long(argc, argv, "hvt:", options_table, NULL)) {
         case 'h':print_usage_info();
             return 0;
-        case 'v':
-            fscan_files_obj.option_verbose = true;
+        case 'v':fscan_files_obj.option_verbose = true;
             verbose = 1;
             break;
         case '?':print_usage_info();
@@ -228,7 +235,7 @@ int main(int argc, char *argv[])
                 if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp) {
                     gexdev_univec_init_capcity(&objects, 100, sizeof(fscan_gfx_info));
                     fscan_obj_gfx_scan(&fscan_files_obj, &objects);
-                    if (verbose){
+                    if (verbose) {
                         for (size_t ii = 0; ii < objects.size; ii++) {
                             print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii), false);
                             printf("\n");
@@ -247,6 +254,8 @@ int main(int argc, char *argv[])
 
                 // Do something with the data
                 // ...
+                //struct gfx_graphic graphic = {0};
+
 
                 fscan_scan_result_close(&tiles);
                 fscan_scan_result_close(&objects);
@@ -267,10 +276,9 @@ int main(int argc, char *argv[])
 inline static int draw_img_and_create_png(const void *headers, const void *bitmap, const struct gfx_palette *palette,
                                           const char *out_filename)
 {
-    png_byte **image = NULL;
-    u32 realWidth = 0, realHeight = 0;
     FILE *fp = NULL;
     struct gex_gfxheader gfxHeader = {0};
+    struct gfx_graphic graphic = {0};
 
     gfxHeader = gex_gfxheader_parse_aob(headers);
 
@@ -288,8 +296,8 @@ inline static int draw_img_and_create_png(const void *headers, const void *bitma
     }
 
     // image creation
-    image = gfx_draw_img_from_raw(headers, bitmap);
-    if (image == NULL) {
+    graphic = gfx_draw_img_from_raw(headers, bitmap);
+    if (graphic.bitmap == NULL) {
         fprintf(stderr, "error: failed to create %s\n", out_filename);
         return EXIT_FAILURE;
     }
@@ -298,17 +306,16 @@ inline static int draw_img_and_create_png(const void *headers, const void *bitma
     fp = fopen(out_filename, "wb");
     if (fp == NULL) {
         fprintf(stderr, "error: failed to open and create %s\n", out_filename);
-        free(image);
+        gfx_graphic_close(&graphic);
         return EXIT_FAILURE;
     }
 
-    gfx_calc_real_width_and_height(&realWidth, &realHeight, headers + 20);
     // PNG write
-    gfx_write_png(fp, image, realWidth, realHeight, palette);
+    gfx_write_png(fp, graphic.bitmap, graphic.width, graphic.height, graphic.palette);
 
     if (fp)
         fclose(fp);
-    free(image);
+    gfx_graphic_close(&graphic);
     return EXIT_SUCCESS;
 }
 

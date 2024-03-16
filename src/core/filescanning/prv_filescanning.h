@@ -32,6 +32,7 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
     long saved_pos = 0;
 
     // header offset read
+    saved_pos = ftell(fchp->fp);
     u32 gfxoff = ginf->gfx_offset = fscan_read_gexptr(fchp->fp, fchp->offset, files_stp->error_jmp_buf);
 
     if (!gfxoff || !fread_LE_U32(&type, 1, fchp->fp)) {
@@ -46,8 +47,9 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
 
     if (ginfv) {
         // read palette offset
-        fseek(fchp->fp, saved_pos, SEEK_SET);
-        ginf->palette_offset = fscan_read_gexptr(fchp->fp, 0, errbufp);
+        fseek(fchp->fp, saved_pos + 4, SEEK_SET);
+
+        ginf->palette_offset = fscan_read_gexptr(fchp->fp, fchp->offset, errbufp);
 
         // finish reading properties
         fread_LE_U32(&gfx_flags, 1, fchp->fp);

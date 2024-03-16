@@ -45,6 +45,7 @@ add_executable(GexGfxRip_PC_TEST
         tests/combine_graphic_with_bmps_test.h
         ${CORE_FILES}
         tests/main.c
+        tests/fscan_draw_gfx_using_gfx_info_test.h
 )
 target_link_libraries(GexGfxRip_PC ${PNG_LIBRARY})
 target_link_libraries(GexGfxRip_PC_TEST ${PNG_LIBRARY})

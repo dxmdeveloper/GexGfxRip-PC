@@ -383,6 +383,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
     uint IDAT_off = 0;
     // TODO: Cache palettes
     struct gfx_palette palette = {0};
+    // TODO: Change choice of file chunk
     fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY!!!
 
     // Argument check
@@ -392,7 +393,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
     if (ginf->ext_bmp_offsets) {
         raw_graphic = p_read_ext_bmp_and_header_then_combine(fchp, ginf);
         if (!raw_graphic) return -2;
-        IDAT_off = gfx_calc_size_of_headers(raw_graphic, ~0 /* change to be more memory safety? */);
+        IDAT_off = gfx_calc_size_of_headers(raw_graphic, 99999 /* change to be more memory safety? */);
     } else {
         // Graphic header parse
         struct gex_gfxheader gheader = {0};
@@ -417,6 +418,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
             } else {
                 IDAT_size = gfx_calc_size_of_bitmap(headers);
             }
+            free(headers);
             if (!IDAT_size) return -5;
             size += IDAT_size;
 
@@ -438,6 +440,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
     }
 
     // TODO: Cache palettes
+    // TODO: Verify palette
     // Read and parse color palette
     if (ginf->palette_offset) {
         fseek(fchp->fp, ginf->palette_offset, SEEK_SET);
@@ -449,14 +452,37 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
     }
 
     // Draw the graphic
-    void *img = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+    struct gfx_graphic graphic = {0};
+    graphic = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+
+    // Free the raw graphic
+    free(raw_graphic);
+
+    if (!graphic.bitmap) {
+        dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: graphic draw error\n");
+        return -8;
+    }
 
     // TODO: Operations on the img
     // TODO: Merge img with gfx_graphic (output)
+    if (!output->bitmap) {
+        //TODO: position and flags
+        output->bitmap = graphic.bitmap;
+        output->width = graphic.width;
+        output->height = graphic.height;
+        output->palette = malloc(sizeof(gfx_palette));
+        memcpy(output->palette, &palette, sizeof(gfx_palette));
+    } else {
+        // TODO: Merge img with gfx_graphic (output)
+        free(graphic.bitmap); // TEMPORARY!!!
+    }
 
-    free(img); // ?????????????????????????????????????????????????
-    if (raw_graphic) free(raw_graphic);
     return 0;
+}
+
+int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output)
+{
+    return fscan_draw_gfx_using_gfx_info_ex(files_stp, ginf, output, 0, 0, 0);
 }
 
 static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)
@@ -521,10 +547,10 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
         }
 
         // rewind to the start of the bitmap with the size
-        fseek(fchp->fp, -4, SEEK_SET);
+        fseek(fchp->fp, -4, SEEK_CUR);
 
         // read bitmap
-        if (fread(bitmaps[i], wh[0] * wh[1] + 4, 2, fchp->fp) != wh[0] * wh[1] + 4) {
+        if (fread(bitmaps[i], 2, wh[0] * wh[1] + 2, fchp->fp) != wh[0] * wh[1] + 2) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
             for (int ii = 0; ii <= i; ii++) {
                 free(bitmaps[ii]);
@@ -538,9 +564,10 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
         fprintf(stderr, "error: fscan_draw_gfx_using_gfx_info_ex: malloc error\n");
         exit(0xbeef);
     }
+
     // read graphic header
     fseek(fchp->fp, ginf->gfx_offset, SEEK_SET);
-    if (fread(gheader, 28 + 8 * ginf->chunk_count, 1, fchp->fp) != 28 + 8 * ginf->chunk_count) {
+    if (fread(gheader, 1, 28 + 8 * ginf->chunk_count, fchp->fp) != 28 + 8 * ginf->chunk_count) {
         dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
         free(gheader);
         for (int i = 0; i < IMG_CHUNKS_LIMIT && bitmaps[i]; i++)
