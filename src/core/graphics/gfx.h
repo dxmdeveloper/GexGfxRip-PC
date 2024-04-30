@@ -125,7 +125,7 @@ size_t gfx_calc_size_of_sprite(const void *gheaders_and_opmap);
 size_t gfx_calc_size_of_headers(const void *headers, size_t buff_size);
 
 /** @brief reads graphic headers from FILE into the dest array. Changes position of file pointer
- *  @param dest address of pointer to which address of allocated array will be assigned. IMPORTANT: must be freed in client function!
+ *  @param dest address of pointer to which address of allocated array will be assigned.
  *  @return size of dest array in bytes. 0 if headers are invalid. */
 size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size);
 
@@ -177,7 +177,7 @@ gfx_graphic gfx_draw_sprite(const void *chunk_headers_and_opmap,
 
 /** @brief calcs real sizes of graphic.
     @return true if sizes are invalid. false if everything is ok.*/
-bool gfx_calc_real_width_and_height(uint32_t *ref_width, uint32_t *ref_height, const void *first_chunk);
+bool gfx_calc_real_width_and_height(uint32_t *out_width, uint32_t *out_height, const void *first_chunk);
 
 uint8_t gex_gfxheader_type_get_bpp(uint32_t typeSignature);
 

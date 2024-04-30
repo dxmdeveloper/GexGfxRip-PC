@@ -73,12 +73,14 @@ typedef struct fscan_files
 
 typedef struct fscan_gfx_info
 {
-    uint8_t iteration[4];
-    uint8_t chunk_count;
     uint32_t *ext_bmp_offsets; // array of length chunk_count
-    struct gfx_properties gfx_props;
     uint32_t gfx_offset;
     uint32_t palette_offset;
+    uint16_t  width;
+    uint16_t  height;
+    uint8_t iteration[4];
+    uint8_t chunk_count;
+    struct gfx_properties gfx_props;
 } fscan_gfx_info;
 
 #ifndef FSCAN_GFX_INFO_VEC_TYPEDEF
@@ -163,11 +165,15 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
  *  @return Pointer to files_stp->tile_bmp_offsets. */
 int fscan_search_for_tile_bmps(fscan_files *files_stp);
 
-int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output);
+int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp,
+                                  const fscan_gfx_info ginf[],
+                                  size_t ginf_n,
+                                  gfx_graphic *output);
 
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
                                      const fscan_gfx_info *ginf,
-                                     gfx_graphic *output,
+                                     size_t ginf_n,
                                      int pos_x,
                                      int pos_y,
-                                     int flags);
+                                     int flags,
+                                     gfx_graphic *output);

@@ -376,8 +376,13 @@ fscan_gfx_info *fscan_gfx_info_vec_at(const fscan_gfx_info_vec *vecp, size_t ind
     return &((fscan_gfx_info *) vecp->v)[index];
 }
 
-int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output,
-                                     int pos_x, int pos_y, int flags)
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
+                                     const fscan_gfx_info *ginf,
+                                     size_t ginf_n,
+                                     int pos_x,
+                                     int pos_y,
+                                     int flags,
+                                     gfx_graphic *output)
 {
     void *raw_graphic = NULL;
     uint IDAT_off = 0;
@@ -480,9 +485,12 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp, const fscan_gfx_inf
     return 0;
 }
 
-int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp, const fscan_gfx_info *ginf, gfx_graphic *output)
+int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp,
+                                  const fscan_gfx_info ginf[],
+                                  size_t ginf_n,
+                                  gfx_graphic *output)
 {
-    return fscan_draw_gfx_using_gfx_info_ex(files_stp, ginf, output, 0, 0, 0);
+    return fscan_draw_gfx_using_gfx_info_ex(files_stp, ginf, ginf_n, 0, 0, 0, output);
 }
 
 static uptr p_gexptr_to_offset(u32 gexptr, uptr start_offset)

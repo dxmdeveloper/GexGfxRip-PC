@@ -23,8 +23,15 @@ int fscan_draw_gfx_using_gfx_info_test(char lev_filename[]){
 
     printf("Palette offset: %X\n", fscan_gfx_info_vec_at(&gfx_info_vec, 0)->palette_offset);
 
+    if(fscan_gfx_info_vec_at(&gfx_info_vec, 0)->width != 32 || fscan_gfx_info_vec_at(&gfx_info_vec, 0)->height != 32){
+        printf("Width and height are not 32\n");
+        fscan_files_close(&fscan_files_obj);
+        fscan_gfx_info_vec_close(&gfx_info_vec);
+        return -1;
+    }
+
     // Draw a graphic
-    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 0), &graphic);
+    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 0), 1, &graphic);
     if(graphic.bitmap == NULL){
         fscan_files_close(&fscan_files_obj);
         fscan_gfx_info_vec_close(&gfx_info_vec);

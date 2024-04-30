@@ -117,7 +117,7 @@ struct gfx_palette *gfx_palette_parsef(FILE *ifstream, struct gfx_palette *dest)
     *dest = gfx_create_palette(pal_dat);
     free(pal_dat);
 
-    if(dest->colors_cnt == 0)
+    if (dest->colors_cnt == 0)
         return NULL;
     return dest;
 }
@@ -234,6 +234,9 @@ size_t gfx_fread_headers(FILE *gfx_headers_fp, void *dest, size_t dest_size)
     if (opmap_size > 0xFFFF /*?*/)
         return 0;
 
+    if (dest_size < header_size)
+        return 0;
+
     // file position restore and read all into the headersBuffer
     fseek(gfx_headers_fp, fpos_checkpoint, SEEK_SET);
     if (!fread(dest, 1, header_size, gfx_headers_fp)) {
@@ -284,7 +287,11 @@ gfx_graphic gfx_draw_img_from_rawf(FILE *gfx_header_fp, const uint8_t *bitmap_da
     return output;
 }
 
-gfx_graphic gfx_draw_gex_bitmap(const void *chunk_headers, const u8 bitmap_dat[], uint8_t bpp, u32 min_width, u32 min_height)
+gfx_graphic gfx_draw_gex_bitmap(const void *chunk_headers,
+                                const u8 bitmap_dat[],
+                                uint8_t bpp,
+                                u32 min_width,
+                                u32 min_height)
 {
     u8 **image = NULL;
     u32 width = 0;
@@ -383,7 +390,7 @@ gfx_graphic gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
         }
     }
     // assign output and return
-    output.bitmap = (u8**)image;
+    output.bitmap = (u8 **) image;
     output.width = width;
     output.height = height;
 
@@ -504,7 +511,7 @@ uint8_t gex_gfxheader_type_get_bpp(uint32_t typeSignature)
     return 0;
 }
 
-bool gfx_calc_real_width_and_height(u32 *ref_width, u32 *ref_height, const void *first_chunk)
+bool gfx_calc_real_width_and_height(u32 *out_width, u32 *out_height, const void *first_chunk)
 {
     struct gex_gfxchunk chunk = {0};
     u8 chunk_i = 0;
@@ -516,11 +523,11 @@ bool gfx_calc_real_width_and_height(u32 *ref_width, u32 *ref_height, const void 
             return true;
         }
         // Compare min required size with current canvas borders
-        if (chunk.rel_position_x + chunk.width > *ref_width) {
-            *ref_width = chunk.rel_position_x + chunk.width;
+        if (chunk.rel_position_x + chunk.width > *out_width) {
+            *out_width = chunk.rel_position_x + chunk.width;
         }
-        if (chunk.rel_position_y + chunk.height > *ref_height) {
-            *ref_height = chunk.rel_position_y + chunk.height;
+        if (chunk.rel_position_y + chunk.height > *out_height) {
+            *out_height = chunk.rel_position_y + chunk.height;
         }
         // chunk validation
         if (chunk.start_offset < 20) {
@@ -532,7 +539,7 @@ bool gfx_calc_real_width_and_height(u32 *ref_width, u32 *ref_height, const void 
         chunk_i++;
     }
     // canvas size validation
-    if (*ref_width < 1 || *ref_height < 1 || *ref_width > IMG_MAX_WIDTH || *ref_height > IMG_MAX_HEIGHT) {
+    if (*out_width < 1 || *out_height < 1 || *out_width > IMG_MAX_WIDTH || *out_height > IMG_MAX_HEIGHT) {
         // invalid graphic format / misrecognized data
         return true;
     }
@@ -609,7 +616,7 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
 
         // change start offset in graphic chunk header
         u16 bs = aob_read_LE_U16(&bitmap_start); // byte swap on big endian platforms
-        *((u16 *)((u8*)new_gfx + 20 + 8 * i)) = bs;
+        *((u16 *) ((u8 *) new_gfx + 20 + 8 * i)) = bs;
 
         bitmap_start += cp_w * raw_w;
     }

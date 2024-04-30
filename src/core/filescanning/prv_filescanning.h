@@ -64,11 +64,21 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
     fread_LE_U32(&type, 1, fchp->fp);
 
     // count gfx chunks
+    u8 chunkaob[(IMG_CHUNKS_LIMIT + 1) * 8] = {0};
     struct gex_gfxchunk gchunk = {0};
-    for (; ginf->chunk_count < IMG_CHUNKS_LIMIT; ginf->chunk_count++) {
-        gex_gfxchunk_parsef(fchp->fp, &gchunk);
+
+    for (size_t i = 0; i < IMG_CHUNKS_LIMIT; i++) {
+        fread(chunkaob+i*8, 8, 1, fchp->fp);
+        gchunk = gex_gfxchunk_parse_aob(chunkaob+i*8);
         if (gchunk.width == 0) break;
+        ginf->chunk_count++;
     }
+
+    // calculate real width and height
+    u32 wh[2] = {0};
+    gfx_calc_real_width_and_height(&wh[0], &wh[1], chunkaob);
+    ginf->width = wh[0];
+    ginf->height = wh[1];
 
     if ((type & 0xF0) == 0xC0) {
         // if graphic wasn't used before
