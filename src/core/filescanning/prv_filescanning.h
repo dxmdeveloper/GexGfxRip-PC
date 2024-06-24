@@ -4,6 +4,8 @@
 #include "../helpers/binary_parse.h"
 #include <setjmp.h>
 
+#define COLLECT_DEBUG_PRINT 1
+
 
 //  -------------- STATIC DECLARATIONS --------------
 /** @return 0 on success, negative value on error */
@@ -109,6 +111,11 @@ inline static int p_fscan_collect_gfx_info_common_part(fscan_files files_stp[sta
 
         }
     }
+
+#if COLLECT_DEBUG_PRINT
+    printf("position: 0x%08lX\n", saved_pos);
+    printf("gfx_offset: 0x%08X\n", gfxoff);
+#endif
 
     return 0;
 }

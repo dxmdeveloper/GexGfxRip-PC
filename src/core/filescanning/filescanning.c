@@ -1,6 +1,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <limits.h>
 #include "filescanning.h"
 #include "../helpers/binary_parse.h"
 
@@ -376,6 +377,34 @@ fscan_gfx_info *fscan_gfx_info_vec_at(const fscan_gfx_info_vec *vecp, size_t ind
     return &((fscan_gfx_info *) vecp->v)[index];
 }
 
+// TODO: split into declaration and definition.
+// TODO: consider adding out_origin
+static void calc_output_dimensions(const fscan_gfx_info ginf[],
+                                   size_t ginf_n,
+                                   uint out_width[static 1],
+                                   uint out_height[static 1])
+{
+    int min_x = INT_MAX;
+    int min_y = INT_MAX;
+    int max_x = INT_MIN;
+    int max_y = INT_MIN;
+
+    if(ginf_n == 1){
+        *out_width = ginf->width;
+        *out_height = ginf->height;
+    }
+
+    for (size_t i = 0; i < ginf_n; i++) {
+        min_y = MIN(ginf[i].gfx_props.pos_y, min_y);
+        min_x = MIN(ginf[i].gfx_props.pos_x, min_x);
+        max_y = MAX(ginf[i].gfx_props.pos_y + ginf[i].height, max_y);
+        max_x = MAX(ginf[i].gfx_props.pos_x + ginf[i].width, max_x);
+    }
+
+    *out_width = max_x - min_x;
+    *out_height = max_y - min_y;
+}
+
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
                                      const fscan_gfx_info *ginf,
                                      size_t ginf_n,
@@ -412,10 +441,11 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
             return -3;
         } else {
             // First we need to find out the size of the graphic
-            void *headers = NULL;
+            u8 headers[100];
             long preserved_pos = ftell(fchp->fp);
-            size_t IDAT_size = gfx_fread_headers(fchp->fp, &headers, 0);
-            size_t size = IDAT_off = gfx_fread_headers(fchp->fp, &headers, 0);
+            fprintf(stderr, "%ld", preserved_pos);
+            size_t IDAT_size = 0; //gfx_fread_headers(fchp->fp, &headers, 0);
+            size_t size = IDAT_off = gfx_fread_headers(fchp->fp, &headers, sizeof(headers));
             if (!size) return -4;
 
             if (gheader.type_signature & 4) {
@@ -423,7 +453,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
             } else {
                 IDAT_size = gfx_calc_size_of_bitmap(headers);
             }
-            free(headers);
+
             if (!IDAT_size) return -5;
             size += IDAT_size;
 
@@ -468,13 +498,18 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
         return -8;
     }
 
+    uint w = 0, h = 0;
+    calc_output_dimensions(ginf, ginf_n, &w, &h);
+
+    // TODO: Change it all!!!
     // TODO: Operations on the img
     // TODO: Merge img with gfx_graphic (output)
     if (!output->bitmap) {
+
         //TODO: position and flags
-        output->bitmap = graphic.bitmap;
-        output->width = graphic.width;
-        output->height = graphic.height;
+        output->bitmap = graphic.bitmap; // TEMPORARY!
+        output->width = w;
+        output->height = h;
         output->palette = malloc(sizeof(gfx_palette));
         memcpy(output->palette, &palette, sizeof(gfx_palette));
     } else {

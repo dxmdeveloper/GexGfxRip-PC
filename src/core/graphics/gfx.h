@@ -63,8 +63,8 @@ typedef struct gfx_palette
 /** @brief structure with graphic properties */
 typedef struct gfx_properties
 {
-    uint16_t pos_x;
-    uint16_t pos_y;
+    int16_t pos_x;
+    int16_t pos_y;
     bool is_semi_transparent;
     bool is_flipped_horizontally;
     bool is_flipped_vertically;
