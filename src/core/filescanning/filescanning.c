@@ -41,7 +41,9 @@ p_files_init_open_and_set(const char filename[], FILE *general_fp, size_t fsize,
 }
 
 static inline void *
-p_read_ext_bmp_and_header_then_combine(fscan_file_chunk fchp[static 1], const fscan_gfx_info ginf[static 1]);
+p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *bmp_fchp,
+                                       fscan_file_chunk *header_fchp,
+                                       const fscan_gfx_info *ginf);
 
 int fscan_files_init(fscan_files *files_stp, const char filename[])
 {
@@ -389,7 +391,7 @@ static void calc_output_dimensions(const fscan_gfx_info ginf[],
     int max_x = INT_MIN;
     int max_y = INT_MIN;
 
-    if(ginf_n == 1){
+    if (ginf_n == 1) {
         *out_width = ginf->width;
         *out_height = ginf->height;
     }
@@ -405,35 +407,32 @@ static void calc_output_dimensions(const fscan_gfx_info ginf[],
     *out_height = max_y - min_y;
 }
 
-int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
-                                     const fscan_gfx_info *ginf,
-                                     size_t ginf_n,
-                                     int pos_x,
-                                     int pos_y,
-                                     int flags,
-                                     gfx_graphic *output)
+// TODO: split into declaration and definition.
+static int dump_graphic_binary(fscan_file_chunk *bmp_fchp,
+                               fscan_file_chunk *gfx_fchp,
+                               const fscan_gfx_info *ginf,
+                               gfx_graphic *output)
 {
     void *raw_graphic = NULL;
     uint IDAT_off = 0;
-    // TODO: Cache palettes
     struct gfx_palette palette = {0};
-    // TODO: Change choice of file chunk
-    fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY!!!
 
     // Argument check
-    if (ginf->gfx_offset == 0)
+    if (ginf->gfx_offset == 0) {
         return -1;
+    }
 
     if (ginf->ext_bmp_offsets) {
-        raw_graphic = p_read_ext_bmp_and_header_then_combine(fchp, ginf);
+        raw_graphic = p_read_ext_bmp_and_header_then_combine(bmp_fchp, gfx_fchp, ginf);
+
         if (!raw_graphic) return -2;
         IDAT_off = gfx_calc_size_of_headers(raw_graphic, 99999 /* change to be more memory safety? */);
     } else {
         // Graphic header parse
         struct gex_gfxheader gheader = {0};
-        fseek(files_stp->bitmap_chunk.fp, ginf->gfx_offset, SEEK_SET);
-        gex_gfxheader_parsef(fchp->fp, &gheader);
-        fseek(fchp->fp, -20, SEEK_CUR);
+        fseek(bmp_fchp->fp, ginf->gfx_offset, SEEK_SET);
+        gex_gfxheader_parsef(gfx_fchp->fp, &gheader);
+        fseek(gfx_fchp->fp, -20, SEEK_CUR);
 
         if ((gheader.type_signature & 0xF0) == 0xC0) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file chunk with bitmaps is missing"
@@ -442,10 +441,10 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
         } else {
             // First we need to find out the size of the graphic
             u8 headers[100];
-            long preserved_pos = ftell(fchp->fp);
+            long preserved_pos = ftell(gfx_fchp->fp);
             fprintf(stderr, "%ld", preserved_pos);
-            size_t IDAT_size = 0; //gfx_fread_headers(fchp->fp, &headers, 0);
-            size_t size = IDAT_off = gfx_fread_headers(fchp->fp, &headers, sizeof(headers));
+            size_t IDAT_size = 0;
+            size_t size = IDAT_off = gfx_fread_headers(gfx_fchp->fp, &headers, sizeof(headers));
             if (!size) return -4;
 
             if (gheader.type_signature & 4) {
@@ -455,6 +454,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
             }
 
             if (!IDAT_size) return -5;
+
             size += IDAT_size;
 
             // Allocate memory for the graphic
@@ -465,8 +465,8 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
             }
 
             // Read the graphic
-            fseek(fchp->fp, preserved_pos, SEEK_SET);
-            if (fread(raw_graphic, size, 1, fchp->fp) != 1) {
+            fseek(gfx_fchp->fp, preserved_pos, SEEK_SET);
+            if (fread(raw_graphic, size, 1, gfx_fchp->fp) != 1) {
                 dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: graphic read error\n");
                 free(raw_graphic);
                 return -6;
@@ -478,8 +478,8 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
     // TODO: Verify palette
     // Read and parse color palette
     if (ginf->palette_offset) {
-        fseek(fchp->fp, ginf->palette_offset, SEEK_SET);
-        if (!gfx_palette_parsef(fchp->fp, &palette)) {
+        fseek(gfx_fchp->fp, ginf->palette_offset, SEEK_SET);
+        if (!gfx_palette_parsef(gfx_fchp->fp, &palette)) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: palette read error\n");
             free(raw_graphic);
             return -7;
@@ -487,19 +487,52 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
     }
 
     // Draw the graphic
-    struct gfx_graphic graphic = {0};
-    graphic = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+    *output = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
 
     // Free the raw graphic
     free(raw_graphic);
 
-    if (!graphic.bitmap) {
+    if (!output->bitmap) {
         dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: graphic draw error\n");
         return -8;
     }
 
+    return 0;
+}
+
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
+                                     const fscan_gfx_info *ginf,
+                                     size_t ginf_n,
+                                     int pos_x,
+                                     int pos_y,
+                                     int flags,
+                                     gfx_graphic *output)
+{
+    gfx_graphic *graphics = malloc(sizeof(gfx_graphic) * ginf_n);
+    fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY SOLUTION!
+
+    for (size_t gi = 0; gi < ginf_n; gi++) {
+        int errcode = dump_graphic_binary(fchp, fchp, &ginf[gi], &graphics[gi]);
+        if(errcode){
+            for(size_t i = 0; i <= gi; i++){
+                gfx_graphic_close(&graphics[i]);
+            }
+            free(graphics);
+            return -1;
+        }
+    }
+
     uint w = 0, h = 0;
     calc_output_dimensions(ginf, ginf_n, &w, &h);
+    // TODO: verify if total size is not too big
+
+    // TODO: check if all the graphics have the same palette. If not convert them to 8bpc
+    output->bitmap = calloc(w * h, graphics[0].palette ? 1 : 3);
+    output->width = w;
+    output->height = h;
+    output->palette = malloc(sizeof(gfx_palette));
+    memcpy(output->palette, &graphics[0].palette, sizeof(gfx_palette));
+
 
     // TODO: Change it all!!!
     // TODO: Operations on the img
@@ -517,6 +550,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
         free(graphic.bitmap); // TEMPORARY!!!
     }
 
+    free(graphics);
     return 0;
 }
 
@@ -554,11 +588,14 @@ void p_close_fchunk(fscan_file_chunk *fchp)
 }
 
 static inline
-void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan_gfx_info *ginf)
+void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *bmp_fchp,
+                                             fscan_file_chunk *header_fchp,
+                                             const fscan_gfx_info *ginf)
 {
     void *raw_graphic = NULL;
     void *gheader = NULL;
     void *bitmaps[IMG_CHUNKS_LIMIT] = {0};
+
 
     // read all bitmaps
     for (int i = 0; i < ginf->chunk_count; i++) {
@@ -569,8 +606,8 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
             return NULL;
         }
         // read size of bitmap
-        fseek(fchp->fp, bmp_offset, SEEK_SET);
-        fread_LE_U16(wh, 2, fchp->fp);
+        fseek(bmp_fchp->fp, bmp_offset, SEEK_SET);
+        fread_LE_U16(wh, 2, bmp_fchp->fp);
 
         if (*(u32 *) wh == 0) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
@@ -590,10 +627,10 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
         }
 
         // rewind to the start of the bitmap with the size
-        fseek(fchp->fp, -4, SEEK_CUR);
+        fseek(bmp_fchp->fp, -4, SEEK_CUR);
 
         // read bitmap
-        if (fread(bitmaps[i], 2, wh[0] * wh[1] + 2, fchp->fp) != wh[0] * wh[1] + 2) {
+        if (fread(bitmaps[i], 2, wh[0] * wh[1] + 2, bmp_fchp->fp) != wh[0] * wh[1] + 2) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
             for (int ii = 0; ii <= i; ii++) {
                 free(bitmaps[ii]);
@@ -609,8 +646,8 @@ void *p_read_ext_bmp_and_header_then_combine(fscan_file_chunk *fchp, const fscan
     }
 
     // read graphic header
-    fseek(fchp->fp, ginf->gfx_offset, SEEK_SET);
-    if (fread(gheader, 1, 28 + 8 * ginf->chunk_count, fchp->fp) != 28 + 8 * ginf->chunk_count) {
+    fseek(header_fchp->fp, ginf->gfx_offset, SEEK_SET);
+    if (fread(gheader, 1, 28 + 8 * ginf->chunk_count, header_fchp->fp) != 28 + 8 * ginf->chunk_count) {
         dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: file read error\n");
         free(gheader);
         for (int i = 0; i < IMG_CHUNKS_LIMIT && bitmaps[i]; i++)
