@@ -408,10 +408,10 @@ static void calc_output_dimensions(const fscan_gfx_info ginf[],
 }
 
 // TODO: split into declaration and definition.
-static int dump_graphic_binary(fscan_file_chunk *bmp_fchp,
-                               fscan_file_chunk *gfx_fchp,
-                               const fscan_gfx_info *ginf,
-                               gfx_graphic *output)
+static int read_and_draw_graphic(fscan_file_chunk *bmp_fchp,
+                                 fscan_file_chunk *gfx_fchp,
+                                 const fscan_gfx_info *ginf,
+                                 gfx_graphic *output)
 {
     void *raw_graphic = NULL;
     uint IDAT_off = 0;
@@ -500,6 +500,26 @@ static int dump_graphic_binary(fscan_file_chunk *bmp_fchp,
     return 0;
 }
 
+static int merge_graphics(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x, int pos_y)
+{
+    if (!canvas->palette && drawing->palette) {
+        canvas->palette = malloc(sizeof(gfx_palette));
+        if (!canvas->palette) exit(0xbeef);
+        memcpy(canvas, drawing, sizeof(gfx_palette));
+    } else if (canvas->palette_offset != drawing->palette_offset) {
+        /// TODO: convert them to 8bpc
+        // ...
+    }
+
+    int x_cnt = MIN(canvas->width - pos_x, drawing->width);
+    int y_cnt = MIN(canvas->height - pos_y, drawing->height);
+    for (int y = 0; y < y_cnt; y++) {
+        memcpy(canvas->bitmap, drawing->bitmap[y], x_cnt * (drawing->palette ? 1 : 3));
+    }
+
+    return 0;
+}
+
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
                                      const fscan_gfx_info *ginf,
                                      size_t ginf_n,
@@ -508,13 +528,13 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
                                      int flags,
                                      gfx_graphic *output)
 {
-    gfx_graphic *graphics = malloc(sizeof(gfx_graphic) * ginf_n);
+    gfx_graphic *graphics = calloc(ginf_n, sizeof(gfx_graphic));
     fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY SOLUTION!
 
     for (size_t gi = 0; gi < ginf_n; gi++) {
-        int errcode = dump_graphic_binary(fchp, fchp, &ginf[gi], &graphics[gi]);
-        if(errcode){
-            for(size_t i = 0; i <= gi; i++){
+        int errcode = read_and_draw_graphic(fchp, fchp, &ginf[gi], &graphics[gi]);
+        if (errcode) {
+            for (size_t i = 0; i <= gi; i++) {
                 gfx_graphic_close(&graphics[i]);
             }
             free(graphics);
@@ -524,30 +544,25 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
 
     uint w = 0, h = 0;
     calc_output_dimensions(ginf, ginf_n, &w, &h);
-    // TODO: verify if total size is not too big
 
-    // TODO: check if all the graphics have the same palette. If not convert them to 8bpc
-    output->bitmap = calloc(w * h, graphics[0].palette ? 1 : 3);
+    // check if the total size of output wouldn't be too big
+    if (w > IMG_MAX_WIDTH || h > IMG_MAX_HEIGHT) {
+        dbg_errlog_va("Image too big (%dx%d). Limit is %dx%d\n", w, h, IMG_MAX_WIDTH, IMG_MAX_HEIGHT);
+        return -2;
+    }
+
+    // draw the graphics on output canvas
     output->width = w;
     output->height = h;
-    output->palette = malloc(sizeof(gfx_palette));
-    memcpy(output->palette, &graphics[0].palette, sizeof(gfx_palette));
 
-
-    // TODO: Change it all!!!
-    // TODO: Operations on the img
-    // TODO: Merge img with gfx_graphic (output)
-    if (!output->bitmap) {
-
-        //TODO: position and flags
-        output->bitmap = graphic.bitmap; // TEMPORARY!
-        output->width = w;
-        output->height = h;
-        output->palette = malloc(sizeof(gfx_palette));
-        memcpy(output->palette, &palette, sizeof(gfx_palette));
+    if (ginf_n > 1) {
+        output->bitmap = calloc(w * h, graphics[0].palette ? 1 : 3);
+        for (int i = 0; i < ginf_n; i++) {
+            merge_graphics(output, &graphics[i], 0, 0);
+            gfx_graphic_close(&graphics[i]);
+        }
     } else {
-        // TODO: Merge img with gfx_graphic (output)
-        free(graphic.bitmap); // TEMPORARY!!!
+        *output = graphics[0];
     }
 
     free(graphics);
