@@ -553,6 +553,9 @@ void gfx_graphic_close(gfx_graphic *g)
 
     if (g->bitmap)
         free(g->bitmap);
+
+    g->palette = NULL;
+    g->bitmap = NULL;
 }
 
 // TODO: Check if this works correctly

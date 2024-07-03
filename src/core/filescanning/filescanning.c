@@ -408,14 +408,13 @@ static void calc_output_dimensions(const fscan_gfx_info ginf[],
 }
 
 // TODO: split into declaration and definition.
-static int read_and_draw_graphic(fscan_file_chunk *bmp_fchp,
-                                 fscan_file_chunk *gfx_fchp,
-                                 const fscan_gfx_info *ginf,
-                                 gfx_graphic *output)
+static int read_and_draw_single_graphic(fscan_file_chunk *bmp_fchp,
+                                        fscan_file_chunk *gfx_fchp,
+                                        const fscan_gfx_info *ginf,
+                                        gfx_graphic *output)
 {
     void *raw_graphic = NULL;
     uint IDAT_off = 0;
-    struct gfx_palette palette = {0};
 
     // Argument check
     if (ginf->gfx_offset == 0) {
@@ -474,20 +473,27 @@ static int read_and_draw_graphic(fscan_file_chunk *bmp_fchp,
         }
     }
 
+    // Draw the graphic
+    *output = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+
     // TODO: Cache palettes
     // TODO: Verify palette
     // Read and parse color palette
     if (ginf->palette_offset) {
+        output->palette = malloc(sizeof(gfx_palette));
         fseek(gfx_fchp->fp, ginf->palette_offset, SEEK_SET);
-        if (!gfx_palette_parsef(gfx_fchp->fp, &palette)) {
+        if (!gfx_palette_parsef(gfx_fchp->fp, output->palette)) {
             dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: palette read error\n");
+            gfx_graphic_close(output);
             free(raw_graphic);
             return -7;
         }
     }
 
-    // Draw the graphic
-    *output = gfx_draw_img_from_raw(raw_graphic, raw_graphic + IDAT_off);
+
+
+
+
 
     // Free the raw graphic
     free(raw_graphic);
@@ -532,7 +538,7 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
     fscan_file_chunk *fchp = &files_stp->bitmap_chunk; // TEMPORARY SOLUTION!
 
     for (size_t gi = 0; gi < ginf_n; gi++) {
-        int errcode = read_and_draw_graphic(fchp, fchp, &ginf[gi], &graphics[gi]);
+        int errcode = read_and_draw_single_graphic(fchp, fchp, &ginf[gi], &graphics[gi]);
         if (errcode) {
             for (size_t i = 0; i <= gi; i++) {
                 gfx_graphic_close(&graphics[i]);
@@ -552,10 +558,9 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
     }
 
     // draw the graphics on output canvas
-    output->width = w;
-    output->height = h;
-
     if (ginf_n > 1) {
+        output->width = w;
+        output->height = h;
         output->bitmap = calloc(w * h, graphics[0].palette ? 1 : 3);
         for (int i = 0; i < ginf_n; i++) {
             merge_graphics(output, &graphics[i], 0, 0);
