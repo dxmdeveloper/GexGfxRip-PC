@@ -8,7 +8,7 @@
 static u32 p_cb_tile_header_binds_compute_index(const void *key);
 
 static inline
-fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
+fscan_gfx_info p_collect_gfx_info(fscan_files sf[static 1],
                                   fscan_file_chunk fchp[static 1],
                                   const u8 iter[static 4],
                                   const fscan_gfx_info_vec *ginfv,
@@ -18,9 +18,9 @@ fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
 
 // ---------------- FUNC DEFINITIONS ----------------
 
-int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
+int fscan_tiles_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
 {
-    fscan_file_chunk *mchp = &files_stp->main_chunk;
+    fscan_file_chunk *mchp = &sf->file_chunks[FCH_TYPE_MAIN];
 
     if (!mchp->fp)
         return -1;
@@ -31,8 +31,8 @@ int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
     // create bitflag array of found graphics.
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (files_stp->bitmap_chunk.fp) {
-        gexdev_bitflag_arr_create(&used_gfx_map, files_stp->intro_chunk.size / 32);
+    if (sf->file_chunks[FCH_TYPE_OBJ_BITMAPS].fp) {
+        gexdev_bitflag_arr_create(&used_gfx_map, mchp->size / 32);
     }
 
     // ---------------------- error handling ----------------------
@@ -47,7 +47,7 @@ int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
     // -----------------------------------------------------------
 
     // ----- tile file chunk scan for bitmap offsets -----
-    fscan_search_for_tile_bmps(files_stp);
+    fscan_search_for_tile_bmps(sf);
 
     // ----- main file chunk scan for graphic entries -----
     u32 block[32] = {0};
@@ -75,7 +75,7 @@ int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
             u8 it[4] = {i, (gfxid >> 8) & 0xff, gfxid & 0xff, 0};
 
             fscan_gfx_info
-                ginf = p_collect_gfx_info(files_stp, mchp, it, res_vec, &used_gfx_map, errbufp, &extbmpcnt);
+                ginf = p_collect_gfx_info(sf, mchp, it, res_vec, &used_gfx_map, errbufp, &extbmpcnt);
 
             if (ginf.gfx_offset == 0) // invalid graphic offset
                 break;
@@ -108,7 +108,7 @@ int fscan_tiles_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
 
                     fseek(mchp->fp, -4, SEEK_CUR); // unread graphic offset
                     fscan_gfx_info
-                        ginf = p_collect_gfx_info(files_stp, mchp, it, res_vec, &used_gfx_map, errbufp, &extbmpcnt);
+                        ginf = p_collect_gfx_info(sf, mchp, it, res_vec, &used_gfx_map, errbufp, &extbmpcnt);
                     gexdev_univec_push_back(res_vec, &ginf); // add to vector
                     fread_LE_U32(&gfx_off, 1, mchp->fp); // read next graphic offset
                     aframe_ind++;
@@ -127,9 +127,10 @@ static u32 p_cb_tile_header_binds_compute_index(const void *key)
 {
 //    const u32 *u32key = key;
 //    return *u32key / 32;
+    return 0;
 }
 
-static inline fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
+static inline fscan_gfx_info p_collect_gfx_info(fscan_files sf[static 1],
                                                 fscan_file_chunk fchp[static 1],
                                                 const u8 iter[static 4],
                                                 const fscan_gfx_info_vec *ginfv,
@@ -140,8 +141,8 @@ static inline fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
     fscan_gfx_info ginf = {.iteration = {iter[3], iter[2], iter[1], iter[0]}}; // little endian key
     long saved_pos = ftell(fchp->fp);
 
-    p_fscan_collect_gfx_info_common_part(files_stp, fchp, used_gfx_map,
-                                         &files_stp->tile_ext_bmp_offsets[iter[0]],
+    p_fscan_collect_gfx_info_common_part(sf, fchp, used_gfx_map,
+                                         &sf->tile_ext_bmp_offsets[iter[0]],
                                          ginfv, errbufp, ext_bmp_counter, &ginf);
 
     // restore position and move to the next graphic

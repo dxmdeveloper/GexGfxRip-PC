@@ -22,6 +22,7 @@ int gexdev_bitflag_arr_set(gexdev_bitflag_arr this[static 1], size_t index, bool
 
 bool gexdev_bitflag_arr_get(const gexdev_bitflag_arr this[static 1], size_t index)
 {
+    if(index / 8 > this->size) return false;
     return this->arr[index / 8] & (1 << (index % 8));
 }
 

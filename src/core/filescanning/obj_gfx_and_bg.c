@@ -9,14 +9,12 @@
 typedef void (*onfound_cb_t)(void *, const void *, const void *, const struct gfx_palette *, u32 *,
                              struct gfx_properties *);
 
-typedef gexdev_u32vec vec32;
-
 typedef gexdev_univec univec;
 
 // _________________________________ static function declarations _________________________________
 //static u32 p_cb_bmp_header_binds_compute_index(const void *key);
 
-inline static int p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec *ginfv);
+inline static int p_scan_chunk_for_obj_gfx(fscan_files sf[1], fscan_file_chunk fchp[1], univec *ginfv);
 
 /// @brief Collects graphic information from file chunk and returns it as fscan_gfx_info object.
 /// Uses files_stp->ext_bmp_counter to count external bitmaps.
@@ -34,55 +32,51 @@ static inline fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1],
 //    return *(const u32 *) key / 32;
 //}
 
-int fscan_obj_gfx_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
+int fscan_obj_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
 {
-    if (!files_stp->main_chunk.fp)
+    if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_MAIN))
         return -1;
 
-    if (!res_vec && !files_stp->bitmap_chunk.fp)
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
-    //TODO: remove it
-    if (files_stp->option_verbose)
-        printf("------------- object scan -------------\n");
-
     // reset ext_bmp_counter
-    files_stp->ext_bmp_counter = 0;
+    sf->ext_bmp_counter = 0;
 
     // don't close the bitflag array because we will need it later
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->main_chunk, res_vec);
-    files_stp->last_scanned_chunk = 0;
+    p_scan_chunk_for_obj_gfx(sf, &sf->file_chunks[FCH_TYPE_MAIN], res_vec);
+    sf->last_scanned_chunk = 0;
     return 0;
 }
 
-int fscan_intro_obj_gfx_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
+int fscan_intro_obj_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
 {
-    if (!files_stp->intro_chunk.fp)
+    if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_INTRO))
         return -1;
 
-    if (!res_vec && !files_stp->bitmap_chunk.fp)
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
     // Scan main chunk before if not scanned yet to correctly set the ext_bmp_counter
-    if (files_stp->last_scanned_chunk != 0 && files_stp->bitmap_chunk.fp) {
-        fscan_obj_gfx_scan(files_stp, NULL);
+    if (sf->last_scanned_chunk != 0 && fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+        fscan_obj_gfx_scan(sf, NULL);
     }
 
-    if (files_stp->option_verbose)
+    if (sf->option_verbose)
         printf("----------- intro object scan ----------\n");
 
 
-    p_scan_chunk_for_obj_gfx(files_stp, &files_stp->intro_chunk, res_vec);
-    files_stp->last_scanned_chunk = 1;
+    p_scan_chunk_for_obj_gfx(sf, &sf->file_chunks[FCH_TYPE_INTRO], res_vec);
+    sf->last_scanned_chunk = 1;
     return 0;
 }
 
-inline static int p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_chunk fchp[1], univec *ginfv)
+inline static int p_scan_chunk_for_obj_gfx(fscan_files *sf, fscan_file_chunk *fchp, univec *ginfv)
 {
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (files_stp->bitmap_chunk.fp) {
-        gexdev_bitflag_arr_create(&used_gfx_map, files_stp->intro_chunk.size / 32);
+    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+        gexdev_bitflag_arr_create(&used_gfx_map, fchp->size / 32);
     }
 
     // error handling
@@ -96,7 +90,7 @@ inline static int p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_
     }
 
     // search for bitmaps in bitmap chunk. The function below will not rescan the chunk if it was already scanned
-    fscan_search_for_ext_bmps(files_stp);
+    fscan_search_for_ext_bmps(sf);
 
     /* main chunk scan start */
     u32 obj_offsets[256] = {0};
@@ -135,7 +129,7 @@ inline static int p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_
                     u8 it[4] = {(u8) i / 2 /* odd iterations skipped */, (u8) ii, (u8) iii, (u8) iv};
                     fseek(fchp->fp, combined_gfx_offs[iv], SEEK_SET);
 
-                    fscan_gfx_info ginf = p_collect_gfx_info(files_stp, fchp, it,
+                    fscan_gfx_info ginf = p_collect_gfx_info(sf, fchp, it,
                                                              &used_gfx_map, ginfv, errbufp);
 
                     if (ginfv)
@@ -148,19 +142,21 @@ inline static int p_scan_chunk_for_obj_gfx(fscan_files files_stp[1], fscan_file_
     return 0;
 }
 
-int fscan_background_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res_vec)
+int fscan_background_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
 {
-    if (!files_stp->bg_chunk.fp)
+    fscan_file_chunk *bgchp = &sf->file_chunks[FCH_TYPE_BACKGROUND];
+
+    if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_BACKGROUND))
         return -1;
 
-    if (!res_vec && !files_stp->bitmap_chunk.fp)
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
     // create bitflag array of found graphics.
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (files_stp->bitmap_chunk.fp) {
-        gexdev_bitflag_arr_create(&used_gfx_map, files_stp->intro_chunk.size / 32);
+    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+        gexdev_bitflag_arr_create(&used_gfx_map, bgchp->size / 32);
     }
 
     // error handling
@@ -173,16 +169,12 @@ int fscan_background_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res
         return err;
     }
 
-    if (files_stp->option_verbose)
-        printf("------------ background scan ------------\n");
-
     // Scan main chunk and intro before if not scanned yet to correctly set the ext_bmp_counter
-    if (files_stp->last_scanned_chunk != 1 && files_stp->bitmap_chunk.fp) {
-        fscan_intro_obj_gfx_scan(files_stp, NULL);
+    if (sf->last_scanned_chunk != 1 && fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+        fscan_intro_obj_gfx_scan(sf, NULL);
     }
 
     // Scan background file chunk
-    fscan_file_chunk *bgchp = &files_stp->bg_chunk;
     FILE *bgfp = bgchp->fp;
 
     fseek(bgfp, bgchp->ep, SEEK_SET);
@@ -216,7 +208,7 @@ int fscan_background_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res
 
                 for (uint iv = 0; iv < sizeofarr(comb_gfx) && comb_gfx[iv]; iv++) {
                     u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
-                    fscan_gfx_info ginf = p_collect_gfx_info(files_stp, bgchp, it, &used_gfx_map, res_vec, errbufp);
+                    fscan_gfx_info ginf = p_collect_gfx_info(sf, bgchp, it, &used_gfx_map, res_vec, errbufp);
                     if (res_vec)
                         gexdev_univec_push_back(res_vec, &ginf);
                 }
@@ -225,7 +217,7 @@ int fscan_background_scan(struct fscan_files *files_stp, fscan_gfx_info_vec *res
     }
 
     gexdev_bitflag_arr_close(&used_gfx_map);
-    files_stp->last_scanned_chunk = 2;
+    sf->last_scanned_chunk = 2;
     return 0;
 }
 
@@ -240,8 +232,8 @@ fscan_gfx_info p_collect_gfx_info(fscan_files files_stp[static 1], fscan_file_ch
     //printf("offset: %lx\n", ftell(fchp->ptrs_fp));
 
     // graphic properties read
-    fread_LE_U16(&ginf.gfx_props.pos_y, 1, fchp->fp);
-    fread_LE_U16(&ginf.gfx_props.pos_x, 1, fchp->fp);
+    fread_LE_I16(&ginf.gfx_props.pos_y, 1, fchp->fp);
+    fread_LE_I16(&ginf.gfx_props.pos_x, 1, fchp->fp);
     fread_LE_U32(&gfx_flags, 1, fchp->fp);
     ginf.gfx_props.is_flipped_vertically = gfx_flags & (1 << 7);
     ginf.gfx_props.is_flipped_horizontally = gfx_flags & (1 << 6);

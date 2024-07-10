@@ -10,6 +10,8 @@
 #define IMG_MAX_WIDTH 2048
 #define IMG_MAX_HEIGHT 2048
 
+void *calloc2D(u32 y, u32 x, u8 element_size);
+
 /**
  * @brief Header containing information about Gex graphic file;
  * Does not contain info about chunks nor operationMapLength (for sprite format);
@@ -56,7 +58,7 @@ typedef struct gfx_palette
 {
     png_color palette[256];
     uint16_t colors_cnt; ///< 16 or 256
-    uint8_t tRNS_array[256];
+    uint8_t tRNS_array[256]; // TODO: Compress
     uint16_t tRNS_count;
 } gfx_palette;
 
@@ -185,3 +187,7 @@ void gfx_graphic_close(gfx_graphic *g);
 
 /** @brief combines graphic headers and bitmaps into one graphic. Headers are modified */
 void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps, size_t bmp_n);
+
+bool gfx_palette_is_color_transparent(const gfx_palette *pal, size_t ind);
+
+int gfx_graphic_merge(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x, int pos_y);

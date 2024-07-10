@@ -12,6 +12,7 @@
 
 #define FILE_MIN_SIZE 64
 #define TILE_BMP_MAX_CHUNKS 16
+#define FILE_CHUNKS 5
 
 /* ERRORS: -1 - failed to open a file, -2 - file is too small, -3 read error, 
    TYPES: 0 - loaded standard level file, 1 - loaded standalone gfx file
@@ -43,6 +44,15 @@ enum fscan_errno_enum
     FSCAN_ERROR_INDEX_OUT_OF_RANGE,
 };
 
+enum fscan_file_chunk_type_enum {
+    FCH_TYPE_UNDEFINED, // I don't know what is it yet
+    FCH_TYPE_TILE_BITMAPS,
+    FCH_TYPE_OBJ_BITMAPS,
+    FCH_TYPE_MAIN,
+    FCH_TYPE_INTRO,
+    FCH_TYPE_BACKGROUND
+};
+
 typedef struct fscan_file_chunk
 {
     FILE *data_fp;
@@ -54,12 +64,7 @@ typedef struct fscan_file_chunk
 
 typedef struct fscan_files
 {
-    fscan_file_chunk tile_bmp_chunk;
-    fscan_file_chunk bitmap_chunk;
-    fscan_file_chunk bg_chunk;
-    fscan_file_chunk main_chunk;
-    fscan_file_chunk intro_chunk;
-
+    fscan_file_chunk file_chunks[FILE_CHUNKS];
     uint32_t ext_bmp_counter;
     gexdev_u32vec ext_bmp_offsets;
     gexdev_u32vec tile_ext_bmp_offsets[TILE_BMP_MAX_CHUNKS];
@@ -111,7 +116,7 @@ size_t fscan_fread(void *dest, size_t size, size_t n, FILE *fp, jmp_buf *error_j
 /** @brief initializes fscan_files structure. Opens one file in read mode multiple times and sets it at start position.
     @return enum fscan_level_type with bit flags */
 // filesStp->error_jmp_buf MUST be set before or after initialization
-int fscan_files_init(fscan_files *files_stp, const char filename[]);
+int fscan_files_init(fscan_files *sf, const char filename[]);
 void fscan_files_close(fscan_files *files_stp);
 
 /////** @brief checks file pointers for errors and eofs. if at least one has an error or eof flag jumps to error_jmp_buf
@@ -158,22 +163,24 @@ size_t fscan_read_gexptr_null_term_arr(fscan_file_chunk *fchp, uint32_t dest[], 
 /** @brief search bitmap chunk for bitmap of game objects and background tiles and pushes offsets to files_stp->ext_bmp_offsets vector
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->ext_bmp_offsets. */
-const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *files_stp);
+const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *sf);
 
 /** @brief search tile bmp chunk for tile bitmaps and pushes offsets to files_stp->tile_bmp_offsets vector
  *  Will not search at all if the chunk is missing or is already scanned.
  *  @return Pointer to files_stp->tile_bmp_offsets. */
-int fscan_search_for_tile_bmps(fscan_files *files_stp);
+int fscan_search_for_tile_bmps(fscan_files *sf);
 
 int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp,
                                   const fscan_gfx_info ginf[],
                                   size_t ginf_n,
                                   gfx_graphic *output);
 
-int fscan_draw_gfx_using_gfx_info_ex(fscan_files *files_stp,
+int fscan_draw_gfx_using_gfx_info_ex(fscan_files *sf,
                                      const fscan_gfx_info *ginf,
                                      size_t ginf_n,
                                      int pos_x,
                                      int pos_y,
                                      int flags,
                                      gfx_graphic *output);
+
+bool fscan_files_is_chunk_existing(const fscan_files *sf, size_t chunk_ind);

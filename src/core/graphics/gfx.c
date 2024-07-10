@@ -9,7 +9,6 @@
 //* STATIC DECLARATIONS:
 /// @param cpix_i index of pixel in chunk
 static void p_chunk_rel_draw_pixel(u8 **img, const struct gex_gfxchunk *chunk, u16 cpix_i, u8 pix_val, u8 bpp);
-static void **calloc2D(u32 y, u32 x, u8 element_size);
 static void **malloc2D(u32 y, u32 x, u8 element_size);
 
 //* EXTERN DEFINITIONS:
@@ -336,10 +335,6 @@ gfx_graphic gfx_draw_gex_bitmap(const void *chunk_headers,
 
         // Proccess Data
         for (u16 i = 0; i < chunk.height * chunk.width; i++) {
-            u16 y = chunk.rel_position_y + (i / chunk.width);
-            u16 x = chunk.rel_position_x + (i % chunk.width);
-
-            image[y][x] = datap[i];
             p_chunk_rel_draw_pixel(image, &chunk, i, datap[i / (8 / bpp)], bpp);
         }
 
@@ -361,7 +356,6 @@ gfx_graphic gfx_draw_gex_bitmap_16bpp(const void *chunk_headers,
 {
     void **image = NULL;
     u32 width = 0, height = 0;
-    struct gex_gfxchunk chunk = {0};
     struct gfx_graphic output = {0};
 
     if (!chunk_headers || !bitmap_dat)
@@ -551,8 +545,11 @@ void gfx_graphic_close(gfx_graphic *g)
     if (g->palette)
         free(g->palette);
 
-    if (g->bitmap)
+    if (g->bitmap) {
+        if(g->bitmap[0])
+            free(g->bitmap[0]);
         free(g->bitmap);
+    }
 
     g->palette = NULL;
     g->bitmap = NULL;
@@ -714,14 +711,69 @@ static void **malloc2D(u32 y, u32 x, u8 element_size)
     return arr;
 }
 
-static void **calloc2D(u32 y, u32 x, u8 element_size)
+void *calloc2D(u32 y, u32 x, u8 element_size)
 {
-    void **arr = (void **) calloc(sizeof(uintptr_t) * y + element_size * x * y, 1);
-    uintptr_t addr = (uintptr_t) &arr[y];
+    void **arr = (void **) calloc(y, sizeof(void *));
+    if (!arr) return NULL;
 
-    for (u32 i = 0; i < y; i++)
-        arr[i] = (void *) (addr + i * element_size * x);
+    void *data = calloc(y * x, element_size);
+    if (!data) {
+        free(arr);
+        return NULL;
+    }
+
+    for (u32 i = 0; i < y; i++) {
+        arr[i] = (void *) ((uintptr_t)data + i * element_size * x);
+    }
 
     return arr;
 }
 
+bool gfx_palette_is_color_transparent(const gfx_palette *pal, size_t ind)
+{
+    if(ind >= pal->colors_cnt)
+        return 0;
+
+    return !pal->tRNS_array[ind];
+}
+
+int gfx_graphic_merge(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x, int pos_y)
+{
+    if (!canvas->palette && drawing->palette) {
+        canvas->palette = malloc(sizeof(gfx_palette));
+        if (!canvas->palette) exit(0xbeef);
+        memcpy(canvas->palette, drawing->palette, sizeof(gfx_palette));
+    } else if (canvas->palette_offset != drawing->palette_offset) {
+        /// TODO: convert them to 8bpc
+        /// have in mind that drawing->palette can be NULL
+        // ...
+    }
+
+    int bytes_per_pix = (drawing->palette ? 1 : 4);
+    int x_cnt = MIN(canvas->width - pos_x, drawing->width);
+    int y_cnt = MIN(canvas->height - pos_y, drawing->height);
+    int x_off = pos_x * bytes_per_pix;
+
+    if (!canvas->palette) {
+        for (int y = 0; y < y_cnt; y++) {
+            for (int x = 0; x < x_cnt; x++) {
+                // if transparent then continue
+                if (drawing->bitmap[y][x * 4 + 3] == 0)
+                    continue;
+
+                memcpy(canvas->bitmap[pos_y + y] + pos_x + x, drawing->bitmap[x * 4], 4); // 4 = RGBA pixel value size
+            }
+        }
+        return 0;
+    }
+
+    for (int y = 0; y < y_cnt; y++) {
+        for (int x = 0; x < x_cnt; x++) {
+            // if transparent then continue // consider optimizing this
+            if (gfx_palette_is_color_transparent(drawing->palette, drawing->bitmap[y][x]))
+                continue;
+            canvas->bitmap[pos_y + y][pos_x + x] = drawing->bitmap[y][x];
+        }
+    }
+    return 0;
+}

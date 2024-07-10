@@ -74,7 +74,7 @@ int fscan_draw_gfx_using_gfx_info_test(char lev_filename[]){
 //    }
 
     // Draw a graphic
-    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 0), 1, &graphic);
+    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 96), 3, &graphic);
     if(graphic.bitmap == NULL){
         fscan_files_close(&fscan_files_obj);
         fscan_gfx_info_vec_close(&gfx_info_vec);

@@ -10,6 +10,8 @@ include_directories(${PNG_INCLUDE_DIRS})
 include_directories(src/core)
 include_directories(src/app)
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -gdwarf-4")
+
 # core files
 set(CORE_FILES
         src/core/essentials/paged_map.c
@@ -34,6 +36,7 @@ set(CORE_FILES
         src/core/essentials/bitflag_array.h
         src/core/essentials/bitflag_array.c
         src/core/filescanning/prv_filescanning.h
+        src/core/common.h
 )
 
 add_executable(GexGfxRip_PC
