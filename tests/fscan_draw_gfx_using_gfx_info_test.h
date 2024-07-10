@@ -56,13 +56,13 @@ int fscan_draw_gfx_using_gfx_info_test(char lev_filename[]){
     // Scan the file for graphics
     fscan_obj_gfx_scan(&fscan_files_obj, &gfx_info_vec);
 
-    if(gfx_info_vec.size == 0){
+    if(gfx_info_vec.base.size == 0){
         fscan_files_close(&fscan_files_obj);
         fscan_gfx_info_vec_close(&gfx_info_vec);
         return 1;
     }
 
-    for(size_t i = 0; i < gfx_info_vec.size; i++){
+    for(size_t i = 0; i < gfx_info_vec.base.size; i++){
         print_fscan_gfx_info(fscan_gfx_info_vec_at(&gfx_info_vec, i), false);
     }
 
@@ -74,7 +74,7 @@ int fscan_draw_gfx_using_gfx_info_test(char lev_filename[]){
 //    }
 
     // Draw a graphic
-    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 96), 3, &graphic);
+    fscan_draw_gfx_using_gfx_info(&fscan_files_obj, fscan_gfx_info_vec_at(&gfx_info_vec, 96), 3, FCH_TYPE_MAIN, &graphic);
     if(graphic.bitmap == NULL){
         fscan_files_close(&fscan_files_obj);
         fscan_gfx_info_vec_close(&gfx_info_vec);

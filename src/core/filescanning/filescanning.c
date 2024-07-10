@@ -92,7 +92,7 @@ int fscan_files_init(fscan_files *sf, const char filename[])
             fseek(fp, 8, SEEK_CUR);
         }
 
-        if (fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
+        if (fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS))
             if (gexdev_u32vec_init_capcity(&sf->ext_bmp_offsets, 256))
                 exit(ERR_OUT_OF_MEMORY);
 
@@ -276,7 +276,7 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *sf)
 {
     u32 block_offsets[6] = {0};
     jmp_buf *errbufp = sf->error_jmp_buf;
-    fscan_file_chunk *bmpc = &sf->file_chunks[FCH_TYPE_OBJ_BITMAPS];
+    fscan_file_chunk *bmpc = &sf->file_chunks[FCH_TYPE_EXT_BITMAPS];
     gexdev_u32vec *ebmp_offs = &sf->ext_bmp_offsets;
 
     if (ebmp_offs->size || !bmpc->fp)
@@ -331,13 +331,13 @@ void fscan_gfx_info_close(fscan_gfx_info *ginf)
     }
 }
 
-void fscan_scan_result_close(gexdev_univec *result)
+void fscan_scan_result_close(fscan_gfx_info_vec *result)
 {
-    if (!result || !result->v) return;
-    for (size_t i = 0; i < result->size; i++) {
+    if (!result || !result->base.v) return;
+    for (size_t i = 0; i < result->base.size; i++) {
         fscan_gfx_info_close(fscan_gfx_info_vec_at(result, i));
     }
-    gexdev_univec_close(result);
+    gexdev_univec_close(&result->base);
 }
 
 void fscan_gfx_info_vec_close(fscan_gfx_info_vec *vecp)
@@ -347,21 +347,23 @@ void fscan_gfx_info_vec_close(fscan_gfx_info_vec *vecp)
 
 fscan_gfx_info *fscan_gfx_info_vec_at(const fscan_gfx_info_vec *vecp, size_t index)
 {
-    if (vecp->size <= index)
+    if (vecp->base.size <= index)
         return NULL;
-    return &((fscan_gfx_info *) vecp->v)[index];
+    return &((fscan_gfx_info *) vecp->base.v)[index];
 }
 
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *sf,
                                      const fscan_gfx_info *ginf, size_t ginf_n,
+                                     int gfx_category,
                                      int pos_x, int pos_y, int flags,
                                      gfx_graphic *output)
 {
     gfx_graphic *graphics = calloc(ginf_n, sizeof(gfx_graphic));
-    fscan_file_chunk *fchp = &sf->file_chunks[FCH_TYPE_OBJ_BITMAPS]; // TEMPORARY SOLUTION!
+    fscan_file_chunk *fchp = &sf->file_chunks[fscan_get_gfx_category_header_origin(gfx_category)];
+    fscan_file_chunk *bmpchp = &sf->file_chunks[fscan_get_gfx_category_ext_bmp_origin(gfx_category)];
 
     for (size_t gi = 0; gi < ginf_n; gi++) {
-        int errcode = p_read_and_draw_single_graphic(fchp, fchp, &ginf[gi], &graphics[gi]);
+        int errcode = p_read_and_draw_single_graphic(bmpchp, fchp, &ginf[gi], &graphics[gi]);
         if (errcode) {
             for (size_t i = 0; i <= gi; i++) {
                 gfx_graphic_close(&graphics[i]);
@@ -404,9 +406,10 @@ int fscan_draw_gfx_using_gfx_info_ex(fscan_files *sf,
 int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp,
                                   const fscan_gfx_info ginf[],
                                   size_t ginf_n,
+                                  int src_file_chunk_ind,
                                   gfx_graphic *output)
 {
-    return fscan_draw_gfx_using_gfx_info_ex(files_stp, ginf, ginf_n, 0, 0, 0, output);
+    return fscan_draw_gfx_using_gfx_info_ex(files_stp, ginf, ginf_n, src_file_chunk_ind, 0, 0, 0, output);
 }
 
 bool fscan_files_is_chunk_existing(const fscan_files *sf, size_t chunk_ind)
@@ -637,4 +640,53 @@ void calc_output_dimensions(const fscan_gfx_info ginf[],
     *out_height = max_y - min_y;
     *out_origin_x = min_x;
     *out_origin_y = min_y;
+}
+
+fscan_gfx_info_vec fscan_gfx_info_vec_create(int gfx_category)
+{
+    fscan_gfx_info_vec result = {.gfx_category = gfx_category};
+    gexdev_univec_init_capcity(&result.base, 128, sizeof(fscan_gfx_info));
+    return result;
+}
+
+int fscan_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec, int gfx_category)
+{
+    if (!res_vec->base.v) {
+        fscan_gfx_info_vec newv = fscan_gfx_info_vec_create(gfx_category);
+        *res_vec = newv;
+    } else if (res_vec->gfx_category != gfx_category) {
+        dbg_errlog("Warning: gfx_category of vector and scan argument mismatch");
+    }
+
+    if (gfx_category == GFX_CAT_TILE)
+        return fscan_tiles_scan(sf, res_vec);
+    if (gfx_category == GFX_CAT_OBJ)
+        return fscan_obj_gfx_scan(sf, res_vec);
+    if (gfx_category == GFX_CAT_INTRO_OBJ)
+        return fscan_intro_obj_gfx_scan(sf, res_vec);
+    if (gfx_category == GFX_CAT_BACKGROUND)
+        return fscan_background_scan(sf, res_vec);
+}
+
+int fscan_get_gfx_category_header_origin(int gfx_category)
+{
+    switch (gfx_category) {
+        case GFX_CAT_TILE:
+        case GFX_CAT_OBJ: return FCH_TYPE_MAIN;
+        case GFX_CAT_INTRO_OBJ: return FCH_TYPE_INTRO;
+        case GFX_CAT_BACKGROUND: return FCH_TYPE_BACKGROUND;
+        default:dbg_errlog("error: unrecognized graphic category!");
+            return -1;
+    }
+}
+int fscan_get_gfx_category_ext_bmp_origin(int gfx_category)
+{
+    switch (gfx_category) {
+        case GFX_CAT_TILE: return FCH_TYPE_TILE_BITMAPS;
+        case GFX_CAT_OBJ:
+        case GFX_CAT_INTRO_OBJ:
+        case GFX_CAT_BACKGROUND: return FCH_TYPE_EXT_BITMAPS;
+        default:dbg_errlog("error: unrecognized graphic category!");
+            return -1;
+    }
 }

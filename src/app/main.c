@@ -22,91 +22,19 @@
 #define MAKEDIR(x) mkdir(x, 0755)
 #endif
 
+#define GFX_CAT_ALL 100
+
 // STATIC DECLARATIONS:
 struct application_options
 {
     char *save_path;
 };
 
-struct onfound_pack
-{
-    struct application_options *app_options;
-    bool is_tile_dir_created;
-    bool is_obj_gfx_dir_created;
-    bool is_intro_dir_created;
-    bool is_bg_dir_created;
-};
+static int strcmp_ci(const char *str1, const char *str2);
 
-enum GFX_TYPE_ENUM
-{
-    TYPE_ALL,
-    TYPE_TILES,
-    TYPE_OBJECTS,
-    TYPE_INTRO,
-    TYPE_BACKGROUNDS,
-};
+static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile);
 
-static void cb_on_tile_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                             u16 tileGfxID,
-                             u16 tileAnimFrameI);
-
-static void
-cb_on_obj_gfx_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                    u32 iterations[static 4], struct gfx_properties *);
-
-static void
-cb_on_intro_obj_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                      u32 iterations[static 4], struct gfx_properties *);
-
-static void
-cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                        u32 iterations[static 4], struct gfx_properties *);
-
-static int strcmp_ci(const char *str1, const char *str2)
-{
-    while (*str1 && *str2 && tolower(*str1) == tolower(*str2))
-        str1++, str2++;
-    return *str1 - *str2;
-}
-
-static void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile)
-{
-    if (!ginf) {
-        printf("NULLPTR\n");
-        return;
-    }
-
-    printf("gfx_offset: 0x%08X\n", ginf->gfx_offset);
-    printf("palette_offset: 0x%08X\n", ginf->palette_offset);
-    printf("chunk_count: %u\n", ginf->chunk_count);
-    // gfx_props
-    printf("gfx_props: \n");
-    printf("\t .pos_x %u\n", ginf->gfx_props.pos_x);
-    printf("\t .pos_y %u\n", ginf->gfx_props.pos_y);
-    printf("\t .is_semi_transparent %u\n", ginf->gfx_props.is_semi_transparent);
-    printf("\t .is_flipped_horizontally %u\n", ginf->gfx_props.is_flipped_horizontally);
-    printf("\t .is_flipped_vertically %u\n", ginf->gfx_props.is_flipped_vertically);
-    // ext_bmp_offsets
-    if (ginf->ext_bmp_offsets && ginf->chunk_count > 0) {
-        printf("ext_bmp_offsets: { ");
-        for (size_t i = 0; i < ginf->chunk_count; i++) {
-            printf("0x%08X ", ginf->ext_bmp_offsets[i]);
-        }
-        printf("}\n");
-    }
-
-    if (!is_tile)
-        printf("iteration: [%u, %u, %u, %u]\n",
-               ginf->iteration[3],
-               ginf->iteration[2],
-               ginf->iteration[1],
-               ginf->iteration[0]);
-    else
-        printf("tileGfxID: 0x%04X (block: %u, anim: %u)\n",
-               aob_read_LE_U16(&ginf->iteration[1]),
-               ginf->iteration[0],
-               ginf->iteration[3]);
-}
+void print_fscan_gfx_info_vec(const fscan_gfx_info_vec *v);
 
 static void print_usage_info()
 {
@@ -121,13 +49,13 @@ static void print_usage_info()
 //-------------------- Program Entry Point --------------------------
 int main(int argc, char *argv[])
 {
-    fscan_files fscan_files_obj = {0};
+    fscan_files sf = {0};
     struct application_options options = {0};
     char odirname[256];
     jmp_buf errbuf;
     int errno = 0;
     int verbose = 0;
-    int type = TYPE_ALL;
+    int type = GFX_CAT_ALL;
 
     // Application options
     struct xpoption options_table[] = {
@@ -138,22 +66,22 @@ int main(int argc, char *argv[])
     switch (xpgetopt_long(argc, argv, "hvt:", options_table, NULL)) {
         case 'h':print_usage_info();
             return 0;
-        case 'v':fscan_files_obj.option_verbose = true;
+        case 'v':sf.option_verbose = true;
             verbose = 1;
             break;
         case '?':print_usage_info();
             return 1;
         case 't':
             if (strcmp_ci(xpoptarg, "all") == 0)
-                type = TYPE_ALL; // default
+                type = GFX_CAT_ALL; // default
             else if (strcmp_ci(xpoptarg, "tiles") == 0)
-                type = TYPE_TILES;
+                type = GFX_CAT_TILE;
             else if (strcmp_ci(xpoptarg, "objects") == 0)
-                type = TYPE_OBJECTS;
+                type = GFX_CAT_OBJ;
             else if (strcmp_ci(xpoptarg, "intro") == 0)
-                type = TYPE_INTRO;
+                type = GFX_CAT_INTRO_OBJ;
             else if (strcmp_ci(xpoptarg, "backgrounds") == 0)
-                type = TYPE_BACKGROUNDS;
+                type = GFX_CAT_BACKGROUND;
             else {
                 fprintf(stderr, "error: unknown type '%s'\n", xpoptarg);
                 return 1;
@@ -163,20 +91,16 @@ int main(int argc, char *argv[])
     // setjmp error handling
     if ((errno = setjmp(errbuf))) {
         fprintf(stderr, "error while scanning file %i", errno);
-        fscan_files_close(&fscan_files_obj);
+        fscan_files_close(&sf);
         return -1;
     }
 
-    fscan_gfx_info_vec tiles = {0};
-    fscan_gfx_info_vec objects = {0};
-    fscan_gfx_info_vec intro_objects = {0};
-    fscan_gfx_info_vec backgrounds = {0};
+    fscan_gfx_info_vec results[GFX_CATEGORIES] = {0};
 
     // if no additional program arguments or asterisk
     if (argc == 1) {
 //        char ifilename[11];
 //        for (u8 fileI = 0; fileI < 255; fileI++) {
-//            struct onfound_pack pack = {&options, 0};
 //            sprintf(ifilename, "GEX%03u.LEV", fileI);
 //
 //            // Test file availability
@@ -188,84 +112,37 @@ int main(int argc, char *argv[])
 //            // output directory name
 //            sprintf(odirname, "%s-rip/", ifilename);
 //            options.save_path = odirname;
-//
-//            if (fscan_files_init(&fscan_files_obj, ifilename) >= 0) {
-//                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.tile_bmp_chunk.fp &&
-//                    fscan_files_obj.main_chunk.fp){}
-//                    //tiles = fscan_tiles_scan(&fscan_files_obj);
-//                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp)
-//                    objects = fscan_obj_gfx_scan(&fscan_files_obj, NULL);
-//                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.fp)
-//                    intro_objects = fscan_intro_obj_gfx_scan(&fscan_files_obj, NULL);
-//                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.fp)
-//                    backgrounds = fscan_background_scan(&fscan_files_obj, NULL);
-//
-//                // Do something with the data
-//                // ...
-//
-//                fscan_scan_result_close(&tiles);
-//                fscan_scan_result_close(&objects);
-//                fscan_scan_result_close(&intro_objects);
-//                fscan_scan_result_close(&backgrounds);
-//
-//                fscan_files_close(&fscan_files_obj);
 //            }
 //        }
     } else {
         for (int i = xpoptind; i < argc; i++) {
-            if (fscan_files_init(&fscan_files_obj, argv[xpoptind]) >= 0) {
-                // output directory name
-                struct onfound_pack pack = {&options, 0};
-                sprintf(odirname, "%s-rip/", argv[xpoptind]);
-                options.save_path = odirname;
+            if (fscan_files_init(&sf, argv[xpoptind]) < 0) {
+                dbg_errlog_va("error: failed to open file %s\n", argv[xpoptind]);
+                continue;
+            }
+            // output directory name
+            sprintf(odirname, "%s-rip/", argv[xpoptind]);
+            options.save_path = odirname;
 
-                // TODO: move to separate function
-                //
-                //////////////////////////////////////////
-                if ((type == TYPE_ALL || type == TYPE_TILES) && fscan_files_obj.main_chunk.fp) {
-                    gexdev_univec_init_capcity(&tiles, 100, sizeof(fscan_gfx_info));
-                    fscan_tiles_scan(&fscan_files_obj, &tiles);
-                    if (verbose) {
-                        for (size_t ii = 0; ii < tiles.size; ii++) {
-                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&tiles, ii), true);
-                            printf("\n");
-                        }
-                    }
-                }
-                if ((type == TYPE_ALL || type == TYPE_OBJECTS) && fscan_files_obj.main_chunk.fp) {
-                    gexdev_univec_init_capcity(&objects, 100, sizeof(fscan_gfx_info));
-                    fscan_obj_gfx_scan(&fscan_files_obj, &objects);
-                    if (verbose) {
-                        for (size_t ii = 0; ii < objects.size; ii++) {
-                            print_fscan_gfx_info(fscan_gfx_info_vec_at(&objects, ii), false);
-                            printf("\n");
-                        }
-                    }
-                }
-                if ((type == TYPE_ALL || type == TYPE_INTRO) && fscan_files_obj.intro_chunk.fp) {
-                    gexdev_univec_init_capcity(&intro_objects, 100, sizeof(fscan_gfx_info));
-                    fscan_intro_obj_gfx_scan(&fscan_files_obj, &intro_objects);
-                }
-                if ((type == TYPE_ALL || type == TYPE_BACKGROUNDS) && fscan_files_obj.bg_chunk.fp) {
-                    gexdev_univec_init_capcity(&backgrounds, 100, sizeof(fscan_gfx_info));
-                    fscan_background_scan(&fscan_files_obj, &backgrounds);
-                }
+            for (int i = 0; i < GFX_CATEGORIES; i++) {
+                if ((type != GFX_CAT_ALL && type != i)
+                    || !fscan_files_is_chunk_existing(&sf, fscan_get_gfx_category_header_origin(i)))
+                    continue;
 
+                fscan_gfx_scan(&sf, &results[i], i);
+                if (verbose)
+                    print_fscan_gfx_info_vec(&results[i]);
 
                 // Do something with the data
                 // ...
-                //struct gfx_graphic graphic = {0};
+                if(i == GFX_CAT_OBJ || i == GFX_CAT_INTRO_OBJ){
 
+                }
+                // ...
 
-                fscan_scan_result_close(&tiles);
-                fscan_scan_result_close(&objects);
-                fscan_scan_result_close(&intro_objects);
-                fscan_scan_result_close(&backgrounds);
-
-                fscan_files_close(&fscan_files_obj);
-            } else {
-                fprintf(stderr, "error: failed to open file %s\n", argv[xpoptind]);
+                fscan_scan_result_close(&results[i]);
             }
+            fscan_files_close(&sf);
         }
     }
     return 0;
@@ -273,6 +150,7 @@ int main(int argc, char *argv[])
 //-------------------------------------------------------------------
 
 /// @return EXIT_SUCCESS or EXIT_FAILURE
+// TODO: REMOVE THIS
 inline static int draw_img_and_create_png(const void *headers, const void *bitmap, const struct gfx_palette *palette,
                                           const char *out_filename)
 {
@@ -319,84 +197,55 @@ inline static int draw_img_and_create_png(const void *headers, const void *bitma
     return EXIT_SUCCESS;
 }
 
-// TODO: output filename based on program argument
-static void cb_on_tile_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                             u16 tileGfxID,
-                             u16 tileAnimFrameI)
+void print_fscan_gfx_info(const fscan_gfx_info *ginf, bool is_tile)
 {
-    char filePath[PATH_MAX] = "\0";
-    struct onfound_pack *packp = clientp;
-
-    // infinite loop protection
-    static int counter = 0;
-    if (++counter > FILE_COUNT_LIMIT) {
-        dbg_errlog("FILE COUNT LIMIT REACHED\n");
-        exit(123);
+    if (!ginf) {
+        printf("NULLPTR\n");
+        return;
     }
-    // ----------------------------------------
 
-    if (!packp->is_tile_dir_created) {
-        MAKEDIR(packp->app_options->save_path); // TODO: add more options
-        snprintf(filePath, PATH_MAX, "%s/tiles", packp->app_options->save_path);
-        MAKEDIR(filePath);
-        packp->is_tile_dir_created = true;
+    printf("gfx_offset: 0x%08X\n", ginf->gfx_offset);
+    printf("palette_offset: 0x%08X\n", ginf->palette_offset);
+    printf("chunk_count: %u\n", ginf->chunk_count);
+    // gfx_props
+    printf("gfx_props: \n");
+    printf("\t .pos_x %u\n", ginf->gfx_props.pos_x);
+    printf("\t .pos_y %u\n", ginf->gfx_props.pos_y);
+    printf("\t .is_semi_transparent %u\n", ginf->gfx_props.is_semi_transparent);
+    printf("\t .is_flipped_horizontally %u\n", ginf->gfx_props.is_flipped_horizontally);
+    printf("\t .is_flipped_vertically %u\n", ginf->gfx_props.is_flipped_vertically);
+    // ext_bmp_offsets
+    if (ginf->ext_bmp_offsets && ginf->chunk_count > 0) {
+        printf("ext_bmp_offsets: { ");
+        for (size_t i = 0; i < ginf->chunk_count; i++) {
+            printf("0x%08X ", ginf->ext_bmp_offsets[i]);
+        }
+        printf("}\n");
     }
-    snprintf(filePath, PATH_MAX, "%s/tiles/%04X-%u.png", packp->app_options->save_path, tileGfxID, tileAnimFrameI);
-    draw_img_and_create_png(headers, bitmap, palette, filePath);
+
+    if (!is_tile)
+        printf("iteration: [%u, %u, %u, %u]\n",
+               ginf->iteration[3],
+               ginf->iteration[2],
+               ginf->iteration[1],
+               ginf->iteration[0]);
+    else
+        printf("tileGfxID: 0x%04X (block: %u, anim: %u)\n",
+               aob_read_LE_U16(&ginf->iteration[1]),
+               ginf->iteration[0],
+               ginf->iteration[3]);
 }
 
-inline static void
-on_gfx_found_body(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                  uint iterations[4], bool *isdircreatedflagp, const char *subdir, const char *filename_format)
+int strcmp_ci(const char *str1, const char *str2)
 {
-    char filePath[PATH_MAX] = "\0";
-    char fformat[50] = "%s/%s/";
-    struct onfound_pack *packp = clientp;
-
-    // infinite loop protection
-    static int counter = 0;
-    if (++counter > FILE_COUNT_LIMIT) {
-        dbg_errlog("FILE COUNT LIMIT REACHED\n");
-        exit(123);
-    }
-    // ----------------------------------------
-
-    if (!*isdircreatedflagp) {
-        MAKEDIR(packp->app_options->save_path); // TODO: add more options
-        snprintf(filePath, PATH_MAX, "%s/%s", packp->app_options->save_path, subdir);
-        MAKEDIR(filePath);
-        *isdircreatedflagp = true;
-    }
-    strncat(fformat, filename_format, 44);
-    snprintf(filePath, PATH_MAX, fformat, packp->app_options->save_path, subdir, iterations[0], iterations[1],
-             iterations[2],
-             iterations[3]);
-    draw_img_and_create_png(headers, bitmap, palette, filePath);
+    while (*str1 && *str2 && tolower(*str1) == tolower(*str2))
+        str1++, str2++;
+    return *str1 - *str2;
 }
 
-static void
-cb_on_obj_gfx_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                    u32 iterations[4], struct gfx_properties *gfx_props)
+void print_fscan_gfx_info_vec(const fscan_gfx_info_vec *v)
 {
-    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                      &((struct onfound_pack *) clientp)->is_obj_gfx_dir_created, "objects",
-                      "%u-%u-%u-%u.png");
-}
-
-void cb_on_intro_obj_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                           u32 iterations[4],
-                           struct gfx_properties *gfx_props)
-{
-    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                      &((struct onfound_pack *) clientp)->is_intro_dir_created, "intro",
-                      "%u-%u-%u-%u.png");
-}
-
-void cb_on_backgrounds_found(void *clientp, const void *headers, const void *bitmap, const struct gfx_palette *palette,
-                             u32 iterations[4],
-                             struct gfx_properties *gfx_props)
-{
-    on_gfx_found_body(clientp, headers, bitmap, palette, iterations,
-                      &((struct onfound_pack *) clientp)->is_bg_dir_created, "backgrounds",
-                      "%u-%u-%u-%u.png");
+    const bool is_tile = (v->gfx_category == GFX_CAT_TILE);
+    for (size_t i = 0; i < v->base.size; i++)
+        print_fscan_gfx_info(fscan_gfx_info_vec_at(v, i), is_tile);
 }

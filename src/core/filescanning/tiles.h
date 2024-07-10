@@ -4,10 +4,6 @@
 #include "../essentials/vector.h"
 
 struct fscan_files;
+struct fscan_gfx_info_vec;
 
-#ifndef FSCAN_GFX_INFO_VEC_TYPEDEF
-#define FSCAN_GFX_INFO_VEC_TYPEDEF 1
-typedef gexdev_univec fscan_gfx_info_vec;
-#endif
-
-int fscan_tiles_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec);
+int fscan_tiles_scan(struct fscan_files *sf, struct fscan_gfx_info_vec *res_vec);

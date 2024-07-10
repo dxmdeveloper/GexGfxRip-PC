@@ -47,7 +47,7 @@ enum fscan_errno_enum
 enum fscan_file_chunk_type_enum {
     FCH_TYPE_UNDEFINED, // I don't know what is it yet
     FCH_TYPE_TILE_BITMAPS,
-    FCH_TYPE_OBJ_BITMAPS,
+    FCH_TYPE_EXT_BITMAPS,
     FCH_TYPE_MAIN,
     FCH_TYPE_INTRO,
     FCH_TYPE_BACKGROUND
@@ -88,10 +88,12 @@ typedef struct fscan_gfx_info
     struct gfx_properties gfx_props;
 } fscan_gfx_info;
 
-#ifndef FSCAN_GFX_INFO_VEC_TYPEDEF
-#define FSCAN_GFX_INFO_VEC_TYPEDEF 1
-typedef gexdev_univec fscan_gfx_info_vec;
-#endif
+typedef struct fscan_gfx_info_vec {
+    gexdev_univec base;
+    int gfx_category;
+} fscan_gfx_info_vec;
+
+fscan_gfx_info_vec fscan_gfx_info_vec_create(int gfx_category);
 
 /// @brief function that returns pointer to fscan_gfx_info object at index.
 /// @return NULL if index is out of range, valid pointer otherwise.
@@ -104,6 +106,11 @@ void fscan_scan_result_close(fscan_gfx_info_vec *result);
 
 /** @brief The same as scan_result_close. Closes vector of fscan_gfx_info objects */
 void fscan_gfx_info_vec_close(fscan_gfx_info_vec *vecp);
+
+/** @brief all in one graphic scan function.
+ * @param res_vec output vector with results. Can be uninitialized.
+ * @param gfx_category - enum gfx_category_enum */
+int fscan_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec, int gfx_category);
 
 /** @brief reads infile ptr (aka gexptr) from file and converts it to file offset.
            Jumps to error_jmp_buf if cannot read the values */
@@ -170,17 +177,27 @@ const gexdev_u32vec *fscan_search_for_ext_bmps(fscan_files *sf);
  *  @return Pointer to files_stp->tile_bmp_offsets. */
 int fscan_search_for_tile_bmps(fscan_files *sf);
 
-int fscan_draw_gfx_using_gfx_info(fscan_files *files_stp,
+int fscan_draw_gfx_using_gfx_info(fscan_files *sf,
                                   const fscan_gfx_info ginf[],
                                   size_t ginf_n,
+                                  int src_file_chunk_ind,
                                   gfx_graphic *output);
 
 int fscan_draw_gfx_using_gfx_info_ex(fscan_files *sf,
                                      const fscan_gfx_info *ginf,
                                      size_t ginf_n,
+                                     int gfx_category,
                                      int pos_x,
                                      int pos_y,
                                      int flags,
                                      gfx_graphic *output);
 
 bool fscan_files_is_chunk_existing(const fscan_files *sf, size_t chunk_ind);
+
+/** @brief returns index of file chunk in which headers of graphic occur
+ * @return fscan_file_chunk_type_enum */
+int fscan_get_gfx_category_header_origin(int gfx_category);
+
+/** @brief returns index of file chunk in which external bitmaps occur
+ * @return fscan_file_chunk_type_enum */
+int fscan_get_gfx_category_ext_bmp_origin(int gfx_category);

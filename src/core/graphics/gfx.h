@@ -10,6 +10,21 @@
 #define IMG_MAX_WIDTH 2048
 #define IMG_MAX_HEIGHT 2048
 
+#define GFX_CATEGORIES 4
+enum gfx_category_enum {
+    GFX_CAT_TILE = 0,
+    GFX_CAT_OBJ,
+    GFX_CAT_INTRO_OBJ,
+    GFX_CAT_BACKGROUND
+};
+
+const char *gfx_cat_names_plural[GFX_CATEGORIES] = {
+    "tiles",
+    "objects",
+    "intro objects",
+    "background"
+};
+
 void *calloc2D(u32 y, u32 x, u8 element_size);
 
 /**

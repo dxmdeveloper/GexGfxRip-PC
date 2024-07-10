@@ -31,7 +31,7 @@ int fscan_tiles_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
     // create bitflag array of found graphics.
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (sf->file_chunks[FCH_TYPE_OBJ_BITMAPS].fp) {
+    if (sf->file_chunks[FCH_TYPE_EXT_BITMAPS].fp) {
         gexdev_bitflag_arr_create(&used_gfx_map, mchp->size / 32);
     }
 

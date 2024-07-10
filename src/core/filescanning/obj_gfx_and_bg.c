@@ -14,7 +14,7 @@ typedef gexdev_univec univec;
 // _________________________________ static function declarations _________________________________
 //static u32 p_cb_bmp_header_binds_compute_index(const void *key);
 
-inline static int p_scan_chunk_for_obj_gfx(fscan_files sf[1], fscan_file_chunk fchp[1], univec *ginfv);
+inline static int p_scan_chunk_for_obj_gfx(fscan_files sf[1], fscan_file_chunk fchp[1], fscan_gfx_info_vec *ginfv);
 
 /// @brief Collects graphic information from file chunk and returns it as fscan_gfx_info object.
 /// Uses files_stp->ext_bmp_counter to count external bitmaps.
@@ -37,7 +37,7 @@ int fscan_obj_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
     if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_MAIN))
         return -1;
 
-    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
     // reset ext_bmp_counter
@@ -54,11 +54,11 @@ int fscan_intro_obj_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec
     if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_INTRO))
         return -1;
 
-    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
     // Scan main chunk before if not scanned yet to correctly set the ext_bmp_counter
-    if (sf->last_scanned_chunk != 0 && fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+    if (sf->last_scanned_chunk != 0 && fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS)) {
         fscan_obj_gfx_scan(sf, NULL);
     }
 
@@ -71,11 +71,11 @@ int fscan_intro_obj_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec
     return 0;
 }
 
-inline static int p_scan_chunk_for_obj_gfx(fscan_files *sf, fscan_file_chunk *fchp, univec *ginfv)
+inline static int p_scan_chunk_for_obj_gfx(fscan_files *sf, fscan_file_chunk *fchp, fscan_gfx_info_vec *ginfv)
 {
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS)) {
         gexdev_bitflag_arr_create(&used_gfx_map, fchp->size / 32);
     }
 
@@ -133,7 +133,7 @@ inline static int p_scan_chunk_for_obj_gfx(fscan_files *sf, fscan_file_chunk *fc
                                                              &used_gfx_map, ginfv, errbufp);
 
                     if (ginfv)
-                        gexdev_univec_push_back(ginfv, &ginf);
+                        gexdev_univec_push_back(&ginfv->base, &ginf);
                 }
             }
         }
@@ -149,13 +149,13 @@ int fscan_background_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
     if (!fscan_files_is_chunk_existing(sf, FCH_TYPE_BACKGROUND))
         return -1;
 
-    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS))
+    if (!res_vec && !fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS))
         return 0; // res_vec can be NULL in order to count used external bitmaps
 
     // create bitflag array of found graphics.
     gexdev_bitflag_arr used_gfx_map = {0};
 
-    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+    if (fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS)) {
         gexdev_bitflag_arr_create(&used_gfx_map, bgchp->size / 32);
     }
 
@@ -170,7 +170,7 @@ int fscan_background_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
     }
 
     // Scan main chunk and intro before if not scanned yet to correctly set the ext_bmp_counter
-    if (sf->last_scanned_chunk != 1 && fscan_files_is_chunk_existing(sf, FCH_TYPE_OBJ_BITMAPS)) {
+    if (sf->last_scanned_chunk != 1 && fscan_files_is_chunk_existing(sf, FCH_TYPE_EXT_BITMAPS)) {
         fscan_intro_obj_gfx_scan(sf, NULL);
     }
 
@@ -210,7 +210,7 @@ int fscan_background_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
                     u8 it[4] = {(u8) i, (u8) ii, (u8) iii, (u8) iv};
                     fscan_gfx_info ginf = p_collect_gfx_info(sf, bgchp, it, &used_gfx_map, res_vec, errbufp);
                     if (res_vec)
-                        gexdev_univec_push_back(res_vec, &ginf);
+                        gexdev_univec_push_back(&res_vec->base, &ginf);
                 }
             }
         }
