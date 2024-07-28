@@ -81,7 +81,7 @@ int fscan_tiles_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
                 break;
 
             // add to vector
-            gexdev_univec_push_back(res_vec, &ginf);
+            gexdev_univec_push_back(&res_vec->base, &ginf);
             fread_LE_U32(&gfxid, 1, mchp->fp); // read next tile graphic id
         }
 
@@ -109,7 +109,7 @@ int fscan_tiles_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec)
                     fseek(mchp->fp, -4, SEEK_CUR); // unread graphic offset
                     fscan_gfx_info
                         ginf = p_collect_gfx_info(sf, mchp, it, res_vec, &used_gfx_map, errbufp, &extbmpcnt);
-                    gexdev_univec_push_back(res_vec, &ginf); // add to vector
+                    gexdev_univec_push_back(&res_vec->base, &ginf); // add to vector
                     fread_LE_U32(&gfx_off, 1, mchp->fp); // read next graphic offset
                     aframe_ind++;
                 }

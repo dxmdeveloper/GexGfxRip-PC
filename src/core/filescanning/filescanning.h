@@ -30,6 +30,11 @@ enum fscan_level_type_enum
     FSCAN_LEVEL_FLAG_NO_BACKGROUND = 1 << 4,
 };
 
+enum fscan_gfx_result_action {
+    RESULTS_SAVE_TO_PNG = 0,
+    RESULTS_RETURN_GRAPHIC_VECTOR = 1
+};
+
 enum fscan_errno_enum
 {
     FSCAN_READ_NO_ERROR = 0,
@@ -201,3 +206,7 @@ int fscan_get_gfx_category_header_origin(int gfx_category);
 /** @brief returns index of file chunk in which external bitmaps occur
  * @return fscan_file_chunk_type_enum */
 int fscan_get_gfx_category_ext_bmp_origin(int gfx_category);
+
+/// TODO: DOCUMENT THIS ONE WELL
+void fscan_gfx_process_results(fscan_gfx_info_vec *results, u32 group_mask, enum fscan_gfx_result_action action, void *output);
+void fscan_gfx_draw_and_save_png(u32 key, fscan_gfx_info *ginf, size_t ginf_n, const char *filename);

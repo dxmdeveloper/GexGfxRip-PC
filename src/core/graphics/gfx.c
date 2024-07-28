@@ -1,10 +1,19 @@
 #include "gfx.h"
+#include "../common.h"
 #include <png.h>
 #include "../helpers/basicdefs.h"
 #include "../helpers/binary_parse.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+
+
+const char *gfx_cat_names_plural[GFX_CATEGORIES] = {
+    "tiles",
+    "objects",
+    "intro objects",
+    "background"
+};
 
 //* STATIC DECLARATIONS:
 /// @param cpix_i index of pixel in chunk
@@ -546,7 +555,7 @@ void gfx_graphic_close(gfx_graphic *g)
         free(g->palette);
 
     if (g->bitmap) {
-        if(g->bitmap[0])
+        if (g->bitmap[0])
             free(g->bitmap[0]);
         free(g->bitmap);
     }
@@ -723,7 +732,7 @@ void *calloc2D(u32 y, u32 x, u8 element_size)
     }
 
     for (u32 i = 0; i < y; i++) {
-        arr[i] = (void *) ((uintptr_t)data + i * element_size * x);
+        arr[i] = (void *) ((uintptr_t) data + i * element_size * x);
     }
 
     return arr;
@@ -731,28 +740,28 @@ void *calloc2D(u32 y, u32 x, u8 element_size)
 
 bool gfx_palette_is_color_transparent(const gfx_palette *pal, size_t ind)
 {
-    if(ind >= pal->colors_cnt)
+    if (ind >= pal->colors_cnt)
         return 0;
 
     return !pal->tRNS_array[ind];
 }
 
-int gfx_graphic_merge(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x, int pos_y)
+int gfx_graphic_merge(gfx_graphic *canvas, gfx_graphic *drawing, int pos_x, int pos_y)
 {
     if (!canvas->palette && drawing->palette) {
         canvas->palette = malloc(sizeof(gfx_palette));
         if (!canvas->palette) exit(0xbeef);
         memcpy(canvas->palette, drawing->palette, sizeof(gfx_palette));
     } else if (canvas->palette_offset != drawing->palette_offset) {
-        /// TODO: convert them to 8bpc
-        /// have in mind that drawing->palette can be NULL
-        // ...
+        // Converting to RGBA
+        gfx_graphic_palette_to_RGBA(canvas);
+        if(drawing->palette){
+            gfx_graphic_palette_to_RGBA(drawing);
+        }
     }
 
-    int bytes_per_pix = (drawing->palette ? 1 : 4);
     int x_cnt = MIN(canvas->width - pos_x, drawing->width);
     int y_cnt = MIN(canvas->height - pos_y, drawing->height);
-    int x_off = pos_x * bytes_per_pix;
 
     if (!canvas->palette) {
         for (int y = 0; y < y_cnt; y++) {
@@ -775,5 +784,44 @@ int gfx_graphic_merge(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x
             canvas->bitmap[pos_y + y][pos_x + x] = drawing->bitmap[y][x];
         }
     }
+    return 0;
+}
+
+int gfx_graphic_palette_to_RGBA(gfx_graphic *gfx)
+{
+    if (!gfx->palette)
+        return -1;
+
+    if (!gfx->bitmap)
+        return -2;
+
+    u8 **new_bmp = calloc2D(gfx->height, gfx->width, 4); // 4->RGBA value size
+    if (!new_bmp) {
+        exit(ERR_OUT_OF_MEMORY);
+    }
+
+    for (int y = 0; y < gfx->height; y++) {
+        for (int x = 0; x < gfx->width; x++) {
+            png_color color = gfx->palette->palette[gfx->bitmap[y][x]];
+            bool t = gfx_palette_is_color_transparent(gfx->palette, gfx->bitmap[y][x]);
+            new_bmp[y][x * 4] = color.red;
+            new_bmp[y][x * 4 + 1] = color.green;
+            new_bmp[y][x * 4 + 2] = color.blue;
+            new_bmp[y][x * 4 + 3] =  t ? 0 : 0xFF; // alpha
+        }
+    }
+
+    // delete the palette
+    free(gfx->palette);
+    gfx->palette = NULL;
+    gfx->palette_offset = 0;
+
+    // deleting the old bitmap memory
+    for(size_t i = 0; i < gfx->height; i++){
+        free(gfx->bitmap[i]);
+    }
+    free(gfx->bitmap);
+
+    gfx->bitmap = new_bmp;
     return 0;
 }

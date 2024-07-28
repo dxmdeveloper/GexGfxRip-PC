@@ -11,19 +11,15 @@
 #define IMG_MAX_HEIGHT 2048
 
 #define GFX_CATEGORIES 4
-enum gfx_category_enum {
+enum gfx_category_enum
+{
     GFX_CAT_TILE = 0,
     GFX_CAT_OBJ,
     GFX_CAT_INTRO_OBJ,
     GFX_CAT_BACKGROUND
 };
 
-const char *gfx_cat_names_plural[GFX_CATEGORIES] = {
-    "tiles",
-    "objects",
-    "intro objects",
-    "background"
-};
+extern const char *gfx_cat_names_plural[GFX_CATEGORIES];
 
 void *calloc2D(u32 y, u32 x, u8 element_size);
 
@@ -205,4 +201,8 @@ void *gfx_combine_graphic_and_bitmaps_w_alloc(const void *gfx, const void **bmps
 
 bool gfx_palette_is_color_transparent(const gfx_palette *pal, size_t ind);
 
-int gfx_graphic_merge(gfx_graphic *canvas, const gfx_graphic *drawing, int pos_x, int pos_y);
+int gfx_graphic_merge(gfx_graphic *canvas, gfx_graphic *drawing, int pos_x, int pos_y);
+
+/** @brief convert graphic with color palette to RGBA format
+ * @return 0 on success, -1 if the gfx doesn't have a palette, -2 if the gfx doesn't have a bitmap */
+int gfx_graphic_palette_to_RGBA(gfx_graphic *gfx);

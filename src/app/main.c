@@ -133,12 +133,63 @@ int main(int argc, char *argv[])
                 if (verbose)
                     print_fscan_gfx_info_vec(&results[i]);
 
-                // Do something with the data
-                // ...
-                if(i == GFX_CAT_OBJ || i == GFX_CAT_INTRO_OBJ){
+                if (results[i].base.size == 0)
+                    continue;
 
+                MAKEDIR(gfx_cat_names_plural[i]);
+
+                gfx_graphic graphic = {0};
+                char filename[PATH_MAX + 1];
+                if (i == GFX_CAT_OBJ || i == GFX_CAT_INTRO_OBJ) {
+                    // TODO : CLEAN THIS MESS
+                    u32 key = aob_read_LE_U32(fscan_gfx_info_vec_at(&results[i], 0)->iteration) & 0xFFFFFF00;
+                    int group_start = 0;
+                    int grouped_n = 1;
+                    for (int ii = 1; ii < results[i].base.size; ii++) {
+                        u32 new_key = aob_read_LE_U32(fscan_gfx_info_vec_at(&results[i], ii)->iteration) & 0xFFFFFF00;
+                        if (key != new_key) {
+                            fscan_draw_gfx_using_gfx_info(&sf,
+                                                          fscan_gfx_info_vec_at(&results[i], group_start),
+                                                          grouped_n,
+                                                          0 /* this parameter shouldn't exist */,
+                                                          &graphic);
+                            snprintf(filename, PATH_MAX,
+                                    "%s/%d-%d-%d.png",
+                                    gfx_cat_names_plural[i],
+                                    key >> 24,
+                                    key >> 16 & 0xFF,
+                                    key >> 8 & 0xFF);
+
+                            FILE *pngfp = fopen(filename, "wb");
+                            if(!pngfp){
+                                fprintf(stderr, "Cannot open file: %s", filename);
+                                continue;
+                            }
+                            gfx_write_png(pngfp, graphic.bitmap, graphic.width, graphic.height, graphic.palette);
+                            fclose(pngfp);
+                            group_start = ii;
+                            grouped_n = 1;
+                            key = new_key;
+                        } else
+                            grouped_n++;
+                    }
+                    // Last iteration save
+                    // TODO: Separate this to another function
+                    snprintf(filename, PATH_MAX,
+                             "%s/%d-%d-%d.png",
+                             gfx_cat_names_plural[i],
+                             key >> 24,
+                             key >> 16 & 0xFF,
+                             key >> 8 & 0xFF);
+
+                    FILE *pngfp = fopen(filename, "wb");
+                    if(!pngfp){
+                        fprintf(stderr, "Cannot open file: %s", filename);
+                        continue;
+                    }
+                    gfx_write_png(pngfp, graphic.bitmap, graphic.width, graphic.height, graphic.palette);
+                    fclose(pngfp);
                 }
-                // ...
 
                 fscan_scan_result_close(&results[i]);
             }

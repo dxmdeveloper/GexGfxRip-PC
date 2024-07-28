@@ -541,7 +541,7 @@ int p_read_and_draw_single_graphic(fscan_file_chunk *bmp_fchp,
     } else {
         // Graphic header parse
         struct gex_gfxheader gheader = {0};
-        fseek(bmp_fchp->fp, ginf->gfx_offset, SEEK_SET);
+        fseek(gfx_fchp->fp, ginf->gfx_offset, SEEK_SET);
         gex_gfxheader_parsef(gfx_fchp->fp, &gheader);
         fseek(gfx_fchp->fp, -20, SEEK_CUR);
 
@@ -551,8 +551,7 @@ int p_read_and_draw_single_graphic(fscan_file_chunk *bmp_fchp,
             return -3;
         } else {
             // First we need to find out the size of the graphic
-            u8 headers[2048];
-            long preserved_pos = ftell(gfx_fchp->fp);
+            u8 headers[2048 * 8];
             size_t IDAT_size = 0;
             size_t size = IDAT_off = gfx_fread_headers(gfx_fchp->fp, &headers, sizeof(headers));
             if (!size) return -4;
@@ -575,7 +574,7 @@ int p_read_and_draw_single_graphic(fscan_file_chunk *bmp_fchp,
             }
 
             // Read the graphic
-            fseek(gfx_fchp->fp, preserved_pos, SEEK_SET);
+            fseek(gfx_fchp->fp, ginf->gfx_offset, SEEK_SET);
             if (fread(raw_graphic, size, 1, gfx_fchp->fp) != 1) {
                 dbg_errlog("error: fscan_draw_gfx_using_gfx_info_ex: graphic read error\n");
                 free(raw_graphic);
@@ -666,6 +665,7 @@ int fscan_gfx_scan(struct fscan_files *sf, fscan_gfx_info_vec *res_vec, int gfx_
         return fscan_intro_obj_gfx_scan(sf, res_vec);
     if (gfx_category == GFX_CAT_BACKGROUND)
         return fscan_background_scan(sf, res_vec);
+    return -20;
 }
 
 int fscan_get_gfx_category_header_origin(int gfx_category)
@@ -679,6 +679,7 @@ int fscan_get_gfx_category_header_origin(int gfx_category)
             return -1;
     }
 }
+
 int fscan_get_gfx_category_ext_bmp_origin(int gfx_category)
 {
     switch (gfx_category) {
@@ -689,4 +690,12 @@ int fscan_get_gfx_category_ext_bmp_origin(int gfx_category)
         default:dbg_errlog("error: unrecognized graphic category!");
             return -1;
     }
+}
+
+void fscan_gfx_process_results(fscan_gfx_info_vec *results,
+                               u32 group_mask,
+                               enum fscan_gfx_result_action action,
+                               void *output)
+{
+
 }
